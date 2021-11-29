@@ -65,7 +65,6 @@ namespace quasi_succinct {
 
             uint64_t base_offset = bvb.size();
             offsets of(base_offset, universe, n, params);
-            // initialize all the bits to 0
             bvb.zero_extend(of.end - base_offset);
 
             uint64_t offset;
@@ -117,7 +116,7 @@ namespace quasi_succinct {
         class enumerator {
         public:
 
-            typedef std::pair<uint64_t, uint64_t> value_type; // (position, value)
+            typedef std::pair<uint64_t, uint64_t> value_type; 
 
             enumerator(succinct::bit_vector const& bv, uint64_t offset,
                        uint64_t universe, uint64_t n,
@@ -136,7 +135,6 @@ namespace quasi_succinct {
                     return value();
                 }
 
-                // optimize small forward skips
                 uint64_t skip = position - m_position;
                 if (QS_LIKELY(position > m_position && skip <= linear_scan_threshold)) {
                     m_position = position;
@@ -166,7 +164,6 @@ namespace quasi_succinct {
                 uint64_t diff = lower_bound - m_value;
                 if (QS_LIKELY(lower_bound > m_value
                            && diff <= linear_scan_threshold)) {
-                    // optimize small skips
                     succinct::bit_vector::unary_enumerator he = m_enumerator;
                     uint64_t val;
                     do {
