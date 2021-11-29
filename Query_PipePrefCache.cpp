@@ -833,7 +833,6 @@ struct block_max_wand_query {
 		}
 
 		return scoreQueue[threadid].m_q.size();
-		//return 0;
 	}
 
 private:
@@ -932,7 +931,6 @@ struct wand_query {
 			}
 		}
 		return scoreQueue[threadid].m_q.size();
-		//return 0;
 	}
 
 
