@@ -5,7 +5,7 @@
 #include "FastPFor/headers/VarIntG8IU.h"
 
 // from integer_encoding_library
-#undef ASSERT // XXX WHERE IS THIS DEFINED??
+#undef ASSERT 
 #include "io/BitsReader.hpp"
 #include "io/BitsWriter.hpp"
 using namespace FastPForLib;
