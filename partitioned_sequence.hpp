@@ -52,10 +52,8 @@ namespace quasi_succinct {
                 uint64_t universe_bits = ceil_log2(universe);
                 bvb.append_bits(cur_base, universe_bits);
 
-                // write universe only if non-singleton and not tight
                 if (n > 1) {
                     if (cur_base + cur_partition.back() + 1 == universe) {
-                        // tight universe
                         write_delta(bvb, 0);
                     } else {
                         write_delta(bvb, cur_partition.back());
@@ -88,7 +86,7 @@ namespace quasi_succinct {
                     assert(cur_partition.size() > 0);
                     base_sequence_type::write(bv_sequences, cur_partition.begin(),
                                               cur_partition.back() + 1,
-                                              cur_partition.size(), // XXX skip last one?
+                                              cur_partition.size(), 
                                               params);
                     endpoints.push_back(bv_sequences.size());
                     upper_bounds.push_back(upper_bound);
@@ -122,7 +120,7 @@ namespace quasi_succinct {
         class enumerator {
         public:
 
-            typedef std::pair<uint64_t, uint64_t> value_type; // (position, value)
+            typedef std::pair<uint64_t, uint64_t> value_type; 
 
             enumerator()
             {}
@@ -194,7 +192,6 @@ namespace quasi_succinct {
                 return slow_move();
             }
 
-            // note: this is instantiated oly if BaseSequence has next_geq
             value_type QS_ALWAYSINLINE next_geq(uint64_t lower_bound)
             {
                 if (QS_LIKELY(lower_bound >= m_cur_base && lower_bound <= m_cur_upper_bound)) {
@@ -239,11 +236,6 @@ namespace quasi_succinct {
 
         private:
 
-            // the compiler does not seem smart enough to figure out that this
-            // is a very unlikely condition, and inlines the move(0) inside the
-            // next(), causing the code to grow. Since next is called in very
-            // tight loops, on microbenchmarks this causes an improvement of
-            // about 3ns on my i7 3Ghz
             value_type QS_NOINLINE slow_next()
             {
                 if (QS_UNLIKELY(m_position == m_size)) {
