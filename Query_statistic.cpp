@@ -475,7 +475,7 @@ struct block_posting_list {
 			uint32_t endpoint = block
 				? ((uint32_t const*)m_block_endpoints)[block - 1]
 				: 0;
-			uint8_t const* block_data = m_blocks_data + endpoint - base_endpoint;//
+			uint8_t const* block_data = m_blocks_data + endpoint - base_endpoint;
 
 			m_cur_block_size =
 				((block + 1) * block_size <= size())
@@ -752,7 +752,7 @@ void read_AssignedThreads()
 {
 	assignedThreads.resize(queries.size());
 	vector<int>transform = { 1, 2, 4, 8 };
-	string filename = to_string(queryFileNo)+".txt";
+	string filename = "";
 	ifstream fin(filename);
 	int threadsnum;
 	for (unsigned i = 0; i < queries.size(); i++)
@@ -813,7 +813,7 @@ void aioReadFirstBlock()
 	int threadid = omp_get_thread_num();
 	curReadID[threadid] = 0;
 	unsigned cur = 0, i = 0;
-	for (i = 0, cur = 0; i < Nodeforthread[threadid].size(); i++)//|Q|
+	for (i = 0, cur = 0; i < Nodeforthread[threadid].size(); i++)
 	{
 		unsigned lid = i;
 		io_prep_pread(&readrequest[threadid][cur], IndexFile, Nodeforthread[threadid][lid]->aiodata.list_data + Nodeforthread[threadid][lid]->aiodata.memoffset, Nodeforthread[threadid][lid]->aiodata.readblocksize, Nodeforthread[threadid][lid]->aiodata.readoffset);
@@ -1675,7 +1675,7 @@ void receiveLastRequest(unsigned qid)
 	while (1)
 	{
 		int64_t cur = 0, i = 0;
-		for (i = 0, cur = 0; cur < MAXREQUEST&& Nodeforthread[threadid].size(); curReadID[threadid]++, i++)//把剩下的所有数据读完
+		for (i = 0, cur = 0; cur < MAXREQUEST&& Nodeforthread[threadid].size(); curReadID[threadid]++, i++)
 		{
 			unsigned lid = curReadID[threadid] % Nodeforthread[threadid].size();
 			if (Nodeforthread[threadid][lid]->aiodata.listlength <= Nodeforthread[threadid][lid]->aiodata.curSendpos)
