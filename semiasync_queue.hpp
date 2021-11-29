@@ -37,7 +37,7 @@ namespace quasi_succinct {
                 if (m_expected_work >= m_work_per_thread) {
                     spawn_next_thread();
                 }
-            } else { // all in main thread
+            } else { 
                 j->prepare();
                 j->commit();
                 j.reset();
