@@ -2,7 +2,6 @@
 
 namespace quasi_succinct {
 
-    // note: n can be 0
     void write_gamma(succinct::bit_vector_builder& bvb, uint64_t n)
     {
         uint64_t nn = n + 1;
