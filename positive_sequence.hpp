@@ -33,7 +33,7 @@ namespace quasi_succinct {
         class enumerator {
         public:
 
-            typedef std::pair<uint64_t, uint64_t> value_type; // (position, value)
+            typedef std::pair<uint64_t, uint64_t> value_type; 
 
             enumerator()
             {}
@@ -47,12 +47,9 @@ namespace quasi_succinct {
 
             value_type move(uint64_t position)
             {
-                // we cache m_position and m_cur to avoid the call overhead in
-                // the most common cases
                 uint64_t prev = m_cur;
                 if (position != m_position + 1) {
                     if (QS_UNLIKELY(position == 0)) {
-                        // we need to special-case position 0
                         m_cur = m_base_enum.move(0).second;
                         m_position = 0;
                         return value_type(m_position, m_cur);
