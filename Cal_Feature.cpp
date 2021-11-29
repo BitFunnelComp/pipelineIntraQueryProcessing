@@ -1,4 +1,4 @@
-//Îª×îÓÅÏß³ÌÊıÄ£ĞÍÔ¤²âÌáÈ¡ÌØÕ÷ ×¢Òâtopk·ÖÊı·ÖÎª²éÑ¯µÄ£¬Á´µÄ£¬shardµÄ check ok
+//ä¸ºæœ€ä¼˜çº¿ç¨‹æ•°æ¨¡å‹é¢„æµ‹æå–ç‰¹å¾ æ³¨æ„topkåˆ†æ•°åˆ†ä¸ºæŸ¥è¯¢çš„ï¼Œé“¾çš„ï¼Œshardçš„
 #include<iostream>
 #include<vector>
 #include<stdint.h>
@@ -33,111 +33,109 @@ typedef uint32_t term_id_type;
 typedef std::vector<term_id_type> term_id_vec;
 vector<term_id_vec> queries;
 
-vector<float>termTopkThresh;//term
-vector<vector<float>>TermTopkThreshShard;//term,shard
+vector<float>termTopkThresh;
+vector<vector<float>>TermTopkThreshShard;
 const unsigned topK = 10;
-vector<unsigned>ListLength;//df
+vector<unsigned>ListLength;
 unsigned num_docs;
 
 struct SplitInfo
 {
 	unsigned split_blockid;
-	//int64_t split_offset;
-	//unsigned doc_count;
 	SplitInfo(){ split_blockid = 0; }
 };
-vector<vector<SplitInfo>>splitInfo(constShardcount);//shard,term
+vector<vector<SplitInfo>>splitInfo(constShardcount);
 
 struct QueryFeature
 {
-	//queryĞÅÏ¢
+	//queryä¿¡æ¯
 	float term_count;
 	float query_topK_score;
-	float query_sample_time;////////////////
+	float query_sample_time;
 
-	//termĞÅÏ¢£¨sum,max,var£©
-	//posting¸öÊı
+	//termä¿¡æ¯ï¼ˆsum,max,varï¼‰
+	//postingä¸ªæ•°
 	float sum_no_positings;
 	float max_no_positings;
 	float var_no_positings;
 
-	//Ã¿¸ötermµÄ¿é×î´ó·ÖÊı ×î´óÖµ
+	//æ¯ä¸ªtermçš„å—æœ€å¤§åˆ†æ•° æœ€å¤§å€¼
 	float sum_max_score_term;
 	float max_max_score_term;
 	float var_max_score_term;
 
-	//Ã¿¸ötermµÄ¿é×î´ó·ÖÊı ¾ùÖµ
+	//æ¯ä¸ªtermçš„å—æœ€å¤§åˆ†æ•° å‡å€¼
 	float sum_avg_score_term;
 	float max_avg_score_term;
 	float var_avg_score_term;
 
-	//Ã¿¸ötermµÄ¿é×î´ó·ÖÊı topkÎªÃ¿ÌõÁ´µÄtopk
+	//æ¯ä¸ªtermçš„å—æœ€å¤§åˆ†æ•° topkä¸ºæ¯æ¡é“¾çš„topk
 	float sum_topk_score_term;
 	float max_topk_score_term;
 	float var_topk_score_term;
 
-	//´óÓÚ¿é×î´ó·ÖÊı¾ùÖµµÄ¿éÊı
+	//å¤§äºå—æœ€å¤§åˆ†æ•°å‡å€¼çš„å—æ•°
 	float sum_morethan_avg_score;
 	float max_morethan_avg_score;
 	float var_morethan_avg_score;
 
-	//´óÓÚ¿é×î´ó·ÖÊıtopkµÄ¿éÊı topk·ÖÊıÎª²éÑ¯µÄtopk·ÖÊı
+	//å¤§äºå—æœ€å¤§åˆ†æ•°topkçš„å—æ•° topkåˆ†æ•°ä¸ºæŸ¥è¯¢çš„topkåˆ†æ•°
 	float sum_morethan_topk_score;
 	float max_morethan_topk_score;
 	float var_morethan_topk_score;
 
-	//¿é×î´óÖµ¾ù·½Îó²î
+	//å—æœ€å¤§å€¼å‡æ–¹è¯¯å·®
 	float sum_var_max_score_term;
 	float max_var_max_score_term;
 	float var_var_max_score_term;
 
-	//¿édfµ¹Êı
+	//å—dfå€’æ•°
 	float sum_inverse_df;
 	float max_inverse_df;
 	float var_inverse_df;
 
-	//´óÓÚ×î´ó·ÖÊı95%µÄpostingÊıÁ¿
+	//å¤§äºæœ€å¤§åˆ†æ•°95%çš„postingæ•°é‡
 	float sum_morethan_maxscore5_score;
 	float max_morethan_maxscore5_score;
 	float var_morethan_maxscore5_score;
 
-	//´óÓÚÁ´ÖĞtopk·ÖÊı95%µÄpostingÊıÁ¿
+	//å¤§äºé“¾ä¸­topkåˆ†æ•°95%çš„postingæ•°é‡
 	float sum_morethan_topkscore5_score;
 	float max_morethan_topkscore5_score;
 	float var_morethan_topkscore5_score;
 
-	//shard¼¶±ğ
-	//Ã¿¸öshardÖĞtopkãĞÖµµÄ¾ù·½²î topkÎªÃ¿¸öshardµÄtopk
+	//shardçº§åˆ«
+	//æ¯ä¸ªshardä¸­topké˜ˆå€¼çš„å‡æ–¹å·® topkä¸ºæ¯ä¸ªshardçš„topk
 	float sum_var_topk_score_shard;
 	float max_var_topk_score_shard;
 	float var_var_topk_score_shard;
 
-	//Ã¿¸öshardÖĞavg·ÖÊıµÄ¾ù·½²î
+	//æ¯ä¸ªshardä¸­avgåˆ†æ•°çš„å‡æ–¹å·®
 	float sum_var_avg_score_shard;
 	float max_var_avg_score_shard;
 	float var_var_avg_score_shard;
 
-	//Ã¿¸öshardÖĞ´óÓÚtopk¿éÊıµÄ¾ù·½²î topk·ÖÊıÎª²éÑ¯µÄtopk·ÖÊı
+	//æ¯ä¸ªshardä¸­å¤§äºtopkå—æ•°çš„å‡æ–¹å·® topkåˆ†æ•°ä¸ºæŸ¥è¯¢çš„topkåˆ†æ•°
 	float sum_var_morethan_topk_score_shard;
 	float max_var_morethan_topk_score_shard;
 	float var_var_morethan_topk_score_shard;
 
-	//Ã¿¸öshardÖĞ´óÓÚavg¿éÊıµÄ¾ù·½²î
+	//æ¯ä¸ªshardä¸­å¤§äºavgå—æ•°çš„å‡æ–¹å·®
 	float sum_var_morethan_avg_score_shard;
 	float max_var_morethan_avg_score_shard;
 	float var_var_morethan_avg_score_shard;
 
-	//Ã¿¸öshardÖĞ×î´ó·ÖÊıµÄ¾ù·½²î
+	//æ¯ä¸ªshardä¸­æœ€å¤§åˆ†æ•°çš„å‡æ–¹å·®
 	float sum_var_max_score_shard;
 	float max_var_max_score_shard;
 	float var_var_max_score_shard;
 
-	//Ã¿¸öshardÖĞ´óÓÚ×î´ó·ÖÊı95%µÄpostingÊıÁ¿
+	//æ¯ä¸ªshardä¸­å¤§äºæœ€å¤§åˆ†æ•°95%çš„postingæ•°é‡
 	float sum_var_morethan_maxscore5_score_shard;
 	float max_var_morethan_maxscore5_score_shard;
 	float var_var_morethan_maxscore5_score_shard;
 
-	//Ã¿¸öshardÖĞ´óÓÚÁ´topk·ÖÊı95%µÄpostingÊıÁ¿
+	//æ¯ä¸ªshardä¸­å¤§äºé“¾topkåˆ†æ•°95%çš„postingæ•°é‡
 	float sum_var_morethan_topkscore5_score_shard;
 	float max_var_morethan_topkscore5_score_shard;
 	float var_var_morethan_topkscore5_score_shard;
@@ -187,7 +185,7 @@ void read_Head_Data(string filename)
 }
 void read_list()
 {
-	FILE *file = fopen("/home/lxy/21Back/lxy/ClueWebdata/ClueWeb.docs", "rb");/////////////////////////////
+	FILE *file = fopen("xxx.docs", "rb");
 	unsigned length = 0, docid = 0;
 	fread(&length, sizeof(unsigned), 1, file);
 	unsigned maxdocID = 0;
@@ -252,7 +250,7 @@ void read_termInfo(string filename)
 }
 void read_scoreInfo(string filename)
 {
-	FILE *file = fopen((filename + ".score").c_str(), "rb");//scoreÊÇ¼ÓÈëq_weightµÄ
+	FILE *file = fopen((filename + ".score").c_str(), "rb");
 	unsigned length = 0;
 	preCalScore.resize(Head_offset.size() - 1);
 	for (unsigned i = 0; i < preCalScore.size(); i++)
@@ -294,8 +292,6 @@ void read_SplitInfo(string filename)
 		{
 			fread(&tmps.split_blockid, sizeof(unsigned), 1, file);
 			fread(&tmpoffset, sizeof(int64_t), 1, file);
-			//fread(&tmps.split_offset, sizeof(int64_t), 1, file);
-			//fread(&tmps.doc_count, sizeof(int64_t), 1, file);
 			splitInfo[i][j] = tmps;
 		}
 	}
@@ -338,7 +334,7 @@ void read_TermtopKThresh(string filename)
 		{
 			score = max(score, termTopkThresh[t.first] * t.second);
 		}
-		queryFeatures[i].query_topK_score = score;//ÎªÁË±£Ö¤´ÕÂútopk
+		queryFeatures[i].query_topK_score = score;
 		queryFeatures[i].term_count = terms.size();
 	}
 }
@@ -351,14 +347,11 @@ void read_TermTopkThreshShard(string filename)
 	while (getline(fin, str))
 	{
 		stringstream ss(str);
-		//cout << str << endl;
 		string field = "";
 		while (getline(ss, field, '\t'))
 		{
-			//cout << field << " ";
 			TermTopkThreshShard[linecount].push_back(atof(field.c_str()));
 		}
-		//cout << endl;
 		linecount++;
 	}
 	fin.close();
@@ -372,14 +365,13 @@ void init(string filename)
 	read_ListDF();
 	read_BlockWand_Data(filename);
 
-	read_termInfo("/home/lxy/NVM_code/RawData/ClueWeb/ClueWeb_TermInfo.txt");
-	read_scoreInfo("/home/lxy/NVM_code/RawData/ClueWeb/ClueWeb");
+	read_termInfo("");
+	read_scoreInfo("");
 
 	read_SplitInfo(filename);
-	//read_query("/home/lxy/NVM_code/Data/AOL/AOL_query_test_rand100.txt");
-	read_query("/home/lxy/NVM_code/Data/Reorder/ReorderTest/ClueWeb/ClueWebQuery.txt");//////////////////////
-	read_TermtopKThresh("/home/lxy/NVM_code/Data/Reorder/IntraQuery/topKScoreThresh/ClueWebtop10Score.txt");
-	read_TermTopkThreshShard("/home/lxy/NVM_code/Data/Reorder/IntraQuery/topKScoreThresh/ClueWeb/ClueWebtop10ScoreShard.txt");
+	read_query("");
+	read_TermtopKThresh("");
+	read_TermTopkThreshShard("");
 }
 
 float Sum(vector<float>&v)
@@ -440,7 +432,6 @@ void cal_ShardScoreFeature(unsigned queryid)
 		auto q_weight = scorer_type::query_term_weight(term.second, ListLength[term.first], num_docs);
 
 		unsigned termStartBlock = Block_Start[term.first], termEndBlock = termStartBlock + Block_Start[term.first + 1] - Block_Start[term.first];
-		//float topkscore = termTopkThresh[term.first] * term.second, avgscore = 0;
 		float topkscore = queryFeatures[queryid].query_topK_score, avgscore = 0;
 		for (unsigned b = termStartBlock; b < termEndBlock; b++)
 		{
@@ -480,37 +471,37 @@ void cal_ShardScoreFeature(unsigned queryid)
 		morethan_Topk5.push_back(Var(morethan_topk5));
 	}
 
-	//Ã¿¸öshardÖĞtopkãĞÖµµÄ¾ù·½²î
+	//æ¯ä¸ªshardä¸­topké˜ˆå€¼çš„å‡æ–¹å·®
 	queryFeatures[queryid].sum_var_topk_score_shard = Sum(topkScore);
 	queryFeatures[queryid].max_var_topk_score_shard = Max(topkScore);
 	queryFeatures[queryid].var_var_topk_score_shard = Var(topkScore);
 
-	//Ã¿¸öshardÖĞavg·ÖÊıµÄ¾ù·½²î
+	//æ¯ä¸ªshardä¸­avgåˆ†æ•°çš„å‡æ–¹å·®
 	queryFeatures[queryid].sum_var_avg_score_shard = Sum(avgScore);
 	queryFeatures[queryid].max_var_avg_score_shard = Max(avgScore);
 	queryFeatures[queryid].var_var_avg_score_shard = Var(avgScore);
 
-	//Ã¿¸öshardÖĞ´óÓÚtopk¿éÊıµÄ¾ù·½²î
+	//æ¯ä¸ªshardä¸­å¤§äºtopkå—æ•°çš„å‡æ–¹å·®
 	queryFeatures[queryid].sum_var_morethan_topk_score_shard = Sum(morethan_Topk);
 	queryFeatures[queryid].max_var_morethan_topk_score_shard = Max(morethan_Topk);
 	queryFeatures[queryid].var_var_morethan_topk_score_shard = Var(morethan_Topk);
 
-	//Ã¿¸öshardÖĞ´óÓÚavg¿éÊıµÄ¾ù·½²î
+	//æ¯ä¸ªshardä¸­å¤§äºavgå—æ•°çš„å‡æ–¹å·®
 	queryFeatures[queryid].sum_var_morethan_avg_score_shard = Sum(morethan_Avg);
 	queryFeatures[queryid].max_var_morethan_avg_score_shard = Max(morethan_Avg);
 	queryFeatures[queryid].var_var_morethan_avg_score_shard = Var(morethan_Avg);
 
-	//Ã¿¸öshardÖĞ×î´ó·ÖÊıµÄ¾ù·½²î
+	//æ¯ä¸ªshardä¸­æœ€å¤§åˆ†æ•°çš„å‡æ–¹å·®
 	queryFeatures[queryid].sum_var_max_score_shard = Sum(var_Maxscore);
 	queryFeatures[queryid].max_var_max_score_shard = Max(var_Maxscore);
 	queryFeatures[queryid].var_var_max_score_shard = Var(var_Maxscore);
 
-	//Ã¿¸öshardÖĞ´óÓÚ×î´ó·ÖÊı95%µÄpostingÊıÁ¿
+	//æ¯ä¸ªshardä¸­å¤§äºæœ€å¤§åˆ†æ•°95%çš„postingæ•°é‡
 	queryFeatures[queryid].sum_var_morethan_maxscore5_score_shard = Sum(morethan_Max5);
 	queryFeatures[queryid].max_var_morethan_maxscore5_score_shard = Max(morethan_Max5);
 	queryFeatures[queryid].var_var_morethan_maxscore5_score_shard = Var(morethan_Max5);
 
-	//Ã¿¸öshardÖĞ´óÓÚÁ´topk·ÖÊı95%µÄpostingÊıÁ¿
+	//æ¯ä¸ªshardä¸­å¤§äºé“¾topkåˆ†æ•°95%çš„postingæ•°é‡
 	queryFeatures[queryid].sum_var_morethan_topkscore5_score_shard = Sum(morethan_Topk5);
 	queryFeatures[queryid].max_var_morethan_topkscore5_score_shard = Max(morethan_Topk5);
 	queryFeatures[queryid].var_var_morethan_topkscore5_score_shard = Var(morethan_Topk5);
@@ -576,54 +567,54 @@ void cal_TermScoreFeature(unsigned queryid)
 	}
 	if (abs(checktopkscore - queryFeatures[queryid].query_topK_score) > 0.0001)
 		cout << "query " << queryid << " checktopkscore=" << checktopkscore << " caltopkscore=" << queryFeatures[queryid].query_topK_score << endl;
-	//termĞÅÏ¢£¨sum,max,var£©
+	//termä¿¡æ¯ï¼ˆsum,max,varï¼‰
 
-	//posting¸öÊı
+	//postingä¸ªæ•°
 	queryFeatures[queryid].sum_no_positings = Sum(postingV);
 	queryFeatures[queryid].max_no_positings = Max(postingV);
 	queryFeatures[queryid].var_no_positings = Var(postingV);
 
-	//Ã¿¸ötermµÄ¿é×î´ó·ÖÊı ×î´óÖµ
+	//æ¯ä¸ªtermçš„å—æœ€å¤§åˆ†æ•° æœ€å¤§å€¼
 	queryFeatures[queryid].sum_max_score_term = Sum(maxscoreV);
 	queryFeatures[queryid].max_max_score_term = Max(maxscoreV);
 	queryFeatures[queryid].var_max_score_term = Var(maxscoreV);
 
-	//Ã¿¸ötermµÄ¿é×î´ó·ÖÊı ¾ùÖµ
+	//æ¯ä¸ªtermçš„å—æœ€å¤§åˆ†æ•° å‡å€¼
 	queryFeatures[queryid].sum_avg_score_term = Sum(avgscoreV);
 	queryFeatures[queryid].max_avg_score_term = Max(avgscoreV);
 	queryFeatures[queryid].var_avg_score_term = Var(avgscoreV);
 
-	//Ã¿¸ötermµÄ¿é×î´ó·ÖÊı topK
+	//æ¯ä¸ªtermçš„å—æœ€å¤§åˆ†æ•° topK
 	queryFeatures[queryid].sum_topk_score_term = Sum(topkscoreV);
 	queryFeatures[queryid].max_topk_score_term = Max(topkscoreV);
 	queryFeatures[queryid].var_topk_score_term = Var(topkscoreV);
 
-	//´óÓÚ¿é×î´ó·ÖÊı¾ùÖµµÄ¿éÊı
+	//å¤§äºå—æœ€å¤§åˆ†æ•°å‡å€¼çš„å—æ•°
 	queryFeatures[queryid].sum_morethan_avg_score = Sum(morethan_avgV);
 	queryFeatures[queryid].max_morethan_avg_score = Max(morethan_avgV);
 	queryFeatures[queryid].var_morethan_avg_score = Var(morethan_avgV);
 
-	//´óÓÚ¿é×î´ó·ÖÊıtopkµÄ¿éÊı
+	//å¤§äºå—æœ€å¤§åˆ†æ•°topkçš„å—æ•°
 	queryFeatures[queryid].sum_morethan_topk_score = Sum(morethan_topkV);
 	queryFeatures[queryid].max_morethan_topk_score = Max(morethan_topkV);
 	queryFeatures[queryid].var_morethan_topk_score = Var(morethan_topkV);
 
-	//¿é×î´óÖµ¾ù·½Îó²î
+	//å—æœ€å¤§å€¼å‡æ–¹è¯¯å·®
 	queryFeatures[queryid].sum_var_max_score_term = Sum(var_maxV);
 	queryFeatures[queryid].max_var_max_score_term = Max(var_maxV);
 	queryFeatures[queryid].var_var_max_score_term = Var(var_maxV);
 
-	//¿édfµ¹Êı
+	//å—dfå€’æ•°
 	queryFeatures[queryid].sum_inverse_df = Sum(inverse_dfV);
 	queryFeatures[queryid].max_inverse_df = Max(inverse_dfV);
 	queryFeatures[queryid].var_inverse_df = Var(inverse_dfV);
 
-	//´óÓÚ×î´ó·ÖÊı95%µÄpostingÊıÁ¿
+	//å¤§äºæœ€å¤§åˆ†æ•°95%çš„postingæ•°é‡
 	queryFeatures[queryid].sum_morethan_maxscore5_score = Sum(morethan_max5V);
 	queryFeatures[queryid].max_morethan_maxscore5_score = Max(morethan_max5V);
 	queryFeatures[queryid].var_morethan_maxscore5_score = Var(morethan_max5V);
 
-	//´óÓÚÁ´ÖĞtopk·ÖÊı95%µÄpostingÊıÁ¿
+	//å¤§äºé“¾ä¸­topkåˆ†æ•°95%çš„postingæ•°é‡
 	queryFeatures[queryid].sum_morethan_topkscore5_score = Sum(morethan_topk5V);
 	queryFeatures[queryid].max_morethan_topkscore5_score = Max(morethan_topk5V);
 	queryFeatures[queryid].var_morethan_topkscore5_score = Var(morethan_topk5V);
@@ -641,7 +632,7 @@ void readLabel(string filename)
 {
 	ifstream fin(filename);
 	string str = "";
-	vector<int>transform = { -1, 0, 1, -1, 2, -1, -1, -1, 3 };//1 2 4 8²¢ĞĞ¶È
+	vector<int>transform = { -1, 0, 1, -1, 2, -1, -1, -1, 3 };//1 2 4 8å¹¶è¡Œåº¦
 	while (getline(fin, str))
 	{
 		unsigned label = transform[atoi(str.c_str())];
@@ -650,7 +641,6 @@ void readLabel(string filename)
 	fin.close();
 	if (pall.size() != queryFeatures.size())cout << "pall size wrong" << endl;
 }
-//¶ÁĞ¡ÎÄµµ¼¯ºÏ²éÑ¯Ê±¼ä
 void readSampleTime(string filename)
 {
 	ifstream fin(filename);
@@ -669,92 +659,89 @@ void writeFeature(string filename)
 	ofstream fout(filename);
 	for (unsigned i = 0; i < queryFeatures.size(); i++)
 	{
-		fout << queryFeatures[i].term_count << ",";//0
-		fout << queryFeatures[i].query_topK_score << ",";//1
+		fout << queryFeatures[i].term_count << ",";
+		fout << queryFeatures[i].query_topK_score << ",";
 
-		fout << queryFeatures[i].sum_no_positings << ",";//2
-		fout << queryFeatures[i].max_no_positings << ",";//3
-		fout << queryFeatures[i].var_no_positings << ",";//4
+		fout << queryFeatures[i].sum_no_positings << ",";
+		fout << queryFeatures[i].max_no_positings << ",";
+		fout << queryFeatures[i].var_no_positings << ",";
 
-		fout << queryFeatures[i].sum_max_score_term << ",";//5
-		fout << queryFeatures[i].max_max_score_term << ",";//6
-		fout << queryFeatures[i].var_max_score_term << ",";//7
+		fout << queryFeatures[i].sum_max_score_term << ",";
+		fout << queryFeatures[i].max_max_score_term << ",";
+		fout << queryFeatures[i].var_max_score_term << ",";
 
-		fout << queryFeatures[i].sum_avg_score_term << ",";//8
-		fout << queryFeatures[i].max_avg_score_term << ",";//9
-		fout << queryFeatures[i].var_avg_score_term << ",";//10
+		fout << queryFeatures[i].sum_avg_score_term << ",";
+		fout << queryFeatures[i].max_avg_score_term << ",";
+		fout << queryFeatures[i].var_avg_score_term << ",";
 
-		fout << queryFeatures[i].sum_topk_score_term << ",";//11
-		fout << queryFeatures[i].max_topk_score_term << ",";//12
-		fout << queryFeatures[i].var_topk_score_term << ",";//13
+		fout << queryFeatures[i].sum_topk_score_term << ",";
+		fout << queryFeatures[i].max_topk_score_term << ",";
+		fout << queryFeatures[i].var_topk_score_term << ",";
 
-		fout << queryFeatures[i].sum_morethan_avg_score << ",";//14
-		fout << queryFeatures[i].max_morethan_avg_score << ",";//15
-		fout << queryFeatures[i].var_morethan_avg_score << ",";//16
+		fout << queryFeatures[i].sum_morethan_avg_score << ",";
+		fout << queryFeatures[i].max_morethan_avg_score << ",";
+		fout << queryFeatures[i].var_morethan_avg_score << ",";
 
-		fout << queryFeatures[i].sum_morethan_topk_score << ",";//17
-		fout << queryFeatures[i].max_morethan_topk_score << ",";//18
-		fout << queryFeatures[i].var_morethan_topk_score << ",";//19
+		fout << queryFeatures[i].sum_morethan_topk_score << ",";
+		fout << queryFeatures[i].max_morethan_topk_score << ",";
+		fout << queryFeatures[i].var_morethan_topk_score << ",";
 
-		fout << queryFeatures[i].sum_var_max_score_term << ",";//20
-		fout << queryFeatures[i].max_var_max_score_term << ",";//21
-		fout << queryFeatures[i].var_var_max_score_term << ",";//22
+		fout << queryFeatures[i].sum_var_max_score_term << ",";
+		fout << queryFeatures[i].max_var_max_score_term << ",";
+		fout << queryFeatures[i].var_var_max_score_term << ",";
 
-		fout << queryFeatures[i].sum_inverse_df << ",";//23
-		fout << queryFeatures[i].max_inverse_df << ",";//24
-		fout << queryFeatures[i].var_inverse_df << ",";//25
+		fout << queryFeatures[i].sum_inverse_df << ",";
+		fout << queryFeatures[i].max_inverse_df << ",";
+		fout << queryFeatures[i].var_inverse_df << ",";
 
-		fout << queryFeatures[i].sum_var_topk_score_shard << ",";//26
-		fout << queryFeatures[i].max_var_topk_score_shard << ",";//27
-		fout << queryFeatures[i].var_var_topk_score_shard << ",";//28
+		fout << queryFeatures[i].sum_var_topk_score_shard << ",";
+		fout << queryFeatures[i].max_var_topk_score_shard << ",";
+		fout << queryFeatures[i].var_var_topk_score_shard << ",";
 
-		fout << queryFeatures[i].sum_var_avg_score_shard << ",";//29
-		fout << queryFeatures[i].max_var_avg_score_shard << ",";//30
-		fout << queryFeatures[i].var_var_avg_score_shard << ",";//31
+		fout << queryFeatures[i].sum_var_avg_score_shard << ",";
+		fout << queryFeatures[i].max_var_avg_score_shard << ",";
+		fout << queryFeatures[i].var_var_avg_score_shard << ",";
 
-		fout << queryFeatures[i].sum_var_morethan_topk_score_shard << ",";//32
-		fout << queryFeatures[i].max_var_morethan_topk_score_shard << ",";//33
-		fout << queryFeatures[i].var_var_morethan_topk_score_shard << ",";//34
+		fout << queryFeatures[i].sum_var_morethan_topk_score_shard << ",";
+		fout << queryFeatures[i].max_var_morethan_topk_score_shard << ",";
+		fout << queryFeatures[i].var_var_morethan_topk_score_shard << ",";
 
-		fout << queryFeatures[i].sum_var_morethan_avg_score_shard << ",";//35
-		fout << queryFeatures[i].max_var_morethan_avg_score_shard << ",";//36
-		fout << queryFeatures[i].var_var_morethan_avg_score_shard << ",";//37
+		fout << queryFeatures[i].sum_var_morethan_avg_score_shard << ",";
+		fout << queryFeatures[i].max_var_morethan_avg_score_shard << ",";
+		fout << queryFeatures[i].var_var_morethan_avg_score_shard << ",";
 
-		fout << queryFeatures[i].sum_var_max_score_shard << ",";//38
-		fout << queryFeatures[i].max_var_max_score_shard << ",";//39
-		fout << queryFeatures[i].var_var_max_score_shard << ",";//40
+		fout << queryFeatures[i].sum_var_max_score_shard << ",";
+		fout << queryFeatures[i].max_var_max_score_shard << ",";
+		fout << queryFeatures[i].var_var_max_score_shard << ",";
 
 
-		fout << queryFeatures[i].sum_morethan_maxscore5_score << ",";//41
-		fout << queryFeatures[i].max_morethan_maxscore5_score << ",";//42
-		fout << queryFeatures[i].var_morethan_maxscore5_score << ",";//43
+		fout << queryFeatures[i].sum_morethan_maxscore5_score << ",";
+		fout << queryFeatures[i].max_morethan_maxscore5_score << ",";
+		fout << queryFeatures[i].var_morethan_maxscore5_score << ",";
 
-		fout << queryFeatures[i].sum_morethan_topkscore5_score << ",";//44
-		fout << queryFeatures[i].max_morethan_topkscore5_score << ",";//45
-		fout << queryFeatures[i].var_morethan_topkscore5_score << ",";//46
+		fout << queryFeatures[i].sum_morethan_topkscore5_score << ",";
+		fout << queryFeatures[i].max_morethan_topkscore5_score << ",";
+		fout << queryFeatures[i].var_morethan_topkscore5_score << ",";
 
-		fout << queryFeatures[i].sum_var_morethan_maxscore5_score_shard << ",";//47
-		fout << queryFeatures[i].max_var_morethan_maxscore5_score_shard << ",";//48
-		fout << queryFeatures[i].var_var_morethan_maxscore5_score_shard << ",";//49
+		fout << queryFeatures[i].sum_var_morethan_maxscore5_score_shard << ",";
+		fout << queryFeatures[i].max_var_morethan_maxscore5_score_shard << ",";
+		fout << queryFeatures[i].var_var_morethan_maxscore5_score_shard << ",";
 
-		fout << queryFeatures[i].sum_var_morethan_topkscore5_score_shard << ",";//50
-		fout << queryFeatures[i].max_var_morethan_topkscore5_score_shard << ",";//51
-		fout << queryFeatures[i].var_var_morethan_topkscore5_score_shard << ",";//52
+		fout << queryFeatures[i].sum_var_morethan_topkscore5_score_shard << ",";
+		fout << queryFeatures[i].max_var_morethan_topkscore5_score_shard << ",";
+		fout << queryFeatures[i].var_var_morethan_topkscore5_score_shard << ",";
 
-		fout << queryFeatures[i].query_sample_time << endl;//53
-
-		//fout << pall[i] << endl;
+		fout << queryFeatures[i].query_sample_time << endl;
 	}
 	fout.close();
 }
 int main()
 {
-	init("/OPTANE/lxy/PipeLine/ClueWeb/ClueWeb");
+	init("");
 	cout << "init over" << endl;
 	calFeature();
 	cout << "cal feature over" << endl;
-	//readLabel("/home/lxy/NVM_code/Data/Reorder/IntraQuery/OptimalPall/NoReorder/NonReorder/Gov2QueryNonReordT.txt");
-	readSampleTime("/home/lxy/NVM_code/RawData/ClueWeb/Statistic/ClueWebSample_QueryTime.txt");
-	writeFeature("/home/lxy/NVM_code/RawData/ClueWeb/Feature/ClueWebFeature.txt");
+	readSampleTime("");
+	writeFeature("");
 	cout << "write over" << endl;
 }
