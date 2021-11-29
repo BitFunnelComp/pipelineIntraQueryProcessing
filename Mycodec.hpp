@@ -13,7 +13,7 @@
 #include "FastPFor/headers/simple16.h"
 #include"FastPFor/headers/simdoptpfor.h"
 #include "streamvbyte.h"
-#undef ASSERT // XXX WHERE IS THIS DEFINED??
+#undef ASSERT 
 #include "io/BitsReader.hpp"
 #include "io/BitsWriter.hpp"
 
@@ -41,10 +41,6 @@ public:
 		uint8_t * bout = out;
 		for (size_t k = 0; k < length; ++k) {
 			const uint32_t val(in[k]);
-			/**
-			* Code below could be shorter. Whether it could be faster
-			* depends on your compiler and machine.
-			*/
 			if (val < (1U << 7)) {
 				*bout = static_cast<uint8_t>(val | (1U << 7));
 				++bout;
@@ -114,16 +110,12 @@ public:
 		return inbyte;
 	}
 };
-struct Codec//压缩方法的父类
+struct Codec
 {
-	static const unsigned block_size = 128;//需要改！
-	//virtual void encode(const uint32_t *in, const size_t length, uint8_t *out, size_t& nvalue){ ; }
-	//virtual const uint8_t* decode(uint8_t const* /*in*/, uint32_t* /*out*/, uint32_t  /*sum_of_values*/, size_t /*n*/){ return NULL; }
-	//virtual ~Codec(){ }
+	static const unsigned block_size = 128;
 };
 struct Interpolative
 {
-	//virtual void encode(const uint32_t *in, const size_t length, uint8_t *out, size_t& nvalue){ ; }
 	~Interpolative(){ }
 	const uint8_t* decode(uint8_t const* in, uint32_t* out, uint32_t  sum_of_values, size_t n)
 	{
@@ -135,17 +127,17 @@ struct Interpolative
 		uint32_t high = sum_of_values + n - 1;
 		out[n - 1] = high;
 		if (n > 1) {
-			integer_encoding::internals::BitsReader br((uint32_t const*)inbuf, 2 * n);//cout<<"1"<<endl;
-			br.intrpolatvArray(out, n - 1, 0, 0, high);//cout<<"2"<<endl;
+			integer_encoding::internals::BitsReader br((uint32_t const*)inbuf, 2 * n);
+			br.intrpolatvArray(out, n - 1, 0, 0, high);
 			for (size_t i = n - 1; i > 0; --i) {
 				out[i] -= out[i - 1] + 1;
-			}//cout<<"3"<<endl;
+			}
 			return (uint8_t const*)(br.pos() + 1);
 		}
 		else {
 			return inbuf;
 		}
-	}//如果n==128调用declodeBlock
+	}
 };
 struct NoComp
 {
@@ -177,34 +169,28 @@ struct NoComp
 			out.push_back(p[i]);
 			i++;
 		}
-		//memcpy(out.data(), p, n*sizeof(uint8_t));
 	}
 };
 
 struct Varint_G8IU
 {
-	//virtual void encode(const uint32_t *in, const size_t length, uint8_t *out, size_t& nvalue){ ; }
 	VarIntG8IU varint_codec;
 	Interpolative interpo_codec;
 	~Varint_G8IU(){}
 	const uint8_t* decode(uint8_t const* in, uint32_t* out, uint32_t  sum_of_values, size_t n)
 	{
-		//assert(n = block_size);
 		size_t out_len = Codec::block_size;
 		uint8_t const* ret;
 
 		if (n == Codec::block_size) {
 			const uint8_t * src = in;
 			uint32_t* dst = out;
-			size_t srclen = 2 * out_len * 4; // upper bound
+			size_t srclen = 2 * out_len * 4; 
 			size_t dstlen = out_len * 4;
 			out_len = 0;
 			while (out_len <= (n - 8)) {
 				out_len += varint_codec.decodeBlock(src, srclen, dst, dstlen);
 			}
-
-			// decodeBlock can overshoot, so we decode the last blocks in a
-			// local buffer
 			while (out_len < n) {
 				uint32_t buf[8];
 				uint32_t* bufptr = buf;
@@ -220,14 +206,11 @@ struct Varint_G8IU
 		}
 		else {
 			ret = interpo_codec.decode(in, out, sum_of_values, n);
-			//exit(0);
 		}
 		return ret;
-	}//如果n==128调用declodeBlock
+	}
 };
 struct OptPforBlock : OPTPFor<4, Simple16<false>> {
-	// workaround: OPTPFor does not define decodeBlock, so we cut&paste
-	// the code
 	uint32_t const* decodeBlock(const uint32_t *in, uint32_t *out, size_t& nvalue)
 	{
 		const uint32_t * const initout(out);
@@ -245,7 +228,7 @@ struct OptPforBlock : OPTPFor<4, Simple16<false>> {
 		assert(twonexceptions >= 2 * nExceptions);
 		in += encodedExceptionsSize;
 
-		uint32_t * beginout(out);// we use this later
+		uint32_t * beginout(out);
 
 		for (uint32_t j = 0; j < BlockSize; j += 32) {
 			fastunpack(in, out, b);
@@ -266,11 +249,9 @@ struct OptPfor
 {
 	OptPforBlock optpfor_codec;
 	Interpolative interpo_codec;
-	//virtual void encode(const uint32_t *in, const size_t length, uint8_t *out, size_t& nvalue){ ; }
 	~OptPfor(){}
 	const uint8_t* decode(uint8_t const* in, uint32_t* out, uint32_t  sum_of_values, size_t n)
 	{
-		//assert(n = Codec::block_size);
 		size_t out_len = Codec::block_size;
 		uint8_t const* ret;
 
@@ -284,7 +265,7 @@ struct OptPfor
 			ret = interpo_codec.decode(in, out, sum_of_values, n);
 		}
 		return ret;
-	}//如果n==128调用declodeBlock
+	}
 };
 struct SIMDNewPforBlock :SIMDNewPFor<4, Simple16<false>> {
 	uint32_t const* decodeBlock(const uint32_t *in, uint32_t *out, size_t& nvalue)
@@ -304,7 +285,7 @@ struct SIMDNewPforBlock :SIMDNewPFor<4, Simple16<false>> {
 		assert(twonexceptions >= 2 * nExceptions);
 		in += encodedExceptionsSize;
 
-		uint32_t * beginout(out);// we use this later
+		uint32_t * beginout(out);
 
 		usimdunpack(reinterpret_cast<const __m128i *>(in), out, b);
 		in += 4 * b;
@@ -321,13 +302,11 @@ struct SIMDNewPforBlock :SIMDNewPFor<4, Simple16<false>> {
 };
 struct SIMDNewPfor 
 {
-	//virtual void encode(const uint32_t *in, const size_t length, uint8_t *out, size_t& nvalue){ ; }
 	SIMDNewPforBlock simdnewpfor_codec;
 	Interpolative interpo_codec;
 	~SIMDNewPfor(){}
 	const uint8_t* decode(uint8_t const* in, uint32_t* out, uint32_t  sum_of_values, size_t n)
-	{//cout<<"in"<<(int)*(in)<<" "<<(int)*(in+1)<<" "<<(int)*(in+2)<<" "<<(int)*(in+3)<<endl;
-		//assert(n = Codec::block_size);
+	{
 		size_t out_len = Codec::block_size;
 		uint8_t const* ret;
 		if (n == Codec::block_size) {
@@ -338,13 +317,11 @@ struct SIMDNewPfor
 		}
 		else {
 			ret = interpo_codec.decode(in, out, sum_of_values, n);
-		}//cout<<"ret"<<(int)*(ret)<<" "<<(int)*(ret+1)<<" "<<(int)*(ret+2)<<" "<<(int)*(ret+3)<<endl;
+		}
 		return ret;
 	}
 };
 struct SIMDOptPforBlock :SIMDOPTPFor<4, Simple16<false>> {
-	// workaround: OPTPFor does not define decodeBlock, so we cut&paste
-	// the code
 	uint32_t const* decodeBlock(const uint32_t *in, uint32_t *out, size_t& nvalue)
 	{
 		const uint32_t * const initout(out);
@@ -362,7 +339,7 @@ struct SIMDOptPforBlock :SIMDOPTPFor<4, Simple16<false>> {
 		assert(twonexceptions >= 2 * nExceptions);
 		in += encodedExceptionsSize;
 
-		uint32_t * beginout(out);// we use this later
+		uint32_t * beginout(out);
 
 		usimdunpack(reinterpret_cast<const __m128i *>(in), out, b);
 		in += 4 * b;
@@ -386,8 +363,6 @@ struct SIMDOptPfor
 	uint8_t const* decode(uint8_t const* in, uint32_t* out,
 		uint32_t  sum_of_values, size_t n)
 	{
-		//cout<<"hello"<<" ";
-		//assert(n = Codec::block_size);
 		size_t out_len = Codec::block_size;
 		uint8_t const* ret;
 
@@ -410,13 +385,13 @@ struct StreamVByte
 	Interpolative interpolative_codec;
 	~StreamVByte(){}
 	uint8_t const* decode(uint8_t const* in, uint32_t* out,
-		uint32_t  sum_of_values, size_t n){//n 有没有必要引用
+		uint32_t  sum_of_values, size_t n){
 		uint8_t const* inbuf = in;
-		size_t compsize2;//解压前读取的数据大小（字节）
+		size_t compsize2;
 		if (n == Codec::block_size) {
-			compsize2 = streamvbyte_decode(in, out, n); // decoding (fast)
-			out += n;//每个块解压后要往后跳out，跳n个docid的长度
-			return inbuf + compsize2;//每条链压缩后是块最大值+块偏移+docid压缩后数据+freq压缩后数据，inbuf是docid+freq压缩后数据的头指针，加comsize2是为了调到freq压缩后数据的头部，因为在block_posting_list.hpp的document_enumerator中的stats_freqs_size()会计算压缩后freq的长度（为了在creat_freq_index.cpp中报告每个整数占的bit数。
+			compsize2 = streamvbyte_decode(in, out, n); 
+			out += n;
+			return inbuf + compsize2;
 		}
 		else{
 			uint8_t const* ret;
@@ -432,9 +407,9 @@ struct Simple16_block
 	Interpolative interpolative_codec;
 	~Simple16_block(){}
 	uint8_t const* decode(uint8_t const* in, uint32_t* out,
-		uint32_t  sum_of_values, size_t n){//n 有没有必要引用
+		uint32_t  sum_of_values, size_t n){
        Simple16<false> s16;
-		   size_t compsize=n;//解压前读取的数据大小（字节）
+		   size_t compsize=n;
        if (n == Codec::block_size) {
     			uint8_t const* ret=reinterpret_cast<uint8_t const*>(s16.decodeArray(reinterpret_cast<uint32_t const*>(in), n, out, compsize));
           assert(compsize == n);
@@ -447,5 +422,3 @@ struct Simple16_block
     		}
 	}
 };
-
-//压缩首信息
