@@ -187,7 +187,7 @@ void readIOWork()
 			{
 				if (hasReadFinishIOWork()){ break; }
 				else { continue; }
-			}//cout << "this tid=" << AIOreadinfo[lid].tid << endl;
+			}
 			io_prep_pread(&readrequestPref[cur], IndexFile, prefetchList[i]->aiodata.list_data + prefetchList[i]->aiodata.memoffset, READ_BLOCK, prefetchList[i]->aiodata.readoffset);
 			listrequestPref[cur] = &readrequestPref[cur];
 			prefetchList[i]->aiodata.memoffset += READ_BLOCK;
@@ -1415,7 +1415,7 @@ void receiveLastRequest(vector<unsigned>query)
 	while (1)
 	{
 		int64_t cur = 0, i = 0;
-		for (i = 0, cur = 0; cur < MAXREQUEST&& Nodeforthread[threadid].size(); curReadID[threadid]++, i++)//把剩下的所有数据读完
+		for (i = 0, cur = 0; cur < MAXREQUEST&& Nodeforthread[threadid].size(); curReadID[threadid]++, i++)
 		{
 			unsigned lid = curReadID[threadid] % Nodeforthread[threadid].size();
 			if (Nodeforthread[threadid][lid]->aiodata.listlength <= Nodeforthread[threadid][lid]->aiodata.curSendpos)
