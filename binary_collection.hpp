@@ -131,8 +131,7 @@ namespace quasi_succinct {
 
                 size_t n = 0;
                 size_t pos = m_pos;
-                while (!(n = m_collection->m_data[pos++])); // skip empty seqs
-                // file might be truncated
+                while (!(n = m_collection->m_data[pos++])); 
                 n = std::min(n, size_t(m_collection->m_data_size - pos));
                 posting_type const* begin = &m_collection->m_data[pos];
                 posting_type const* end = begin + n;
