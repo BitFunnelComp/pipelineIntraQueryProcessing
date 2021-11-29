@@ -54,7 +54,7 @@ namespace quasi_succinct {
         class document_enumerator {
         public:
             document_enumerator(uint8_t const* data, uint64_t universe)
-                : m_n(0) // just to silence warnings
+                : m_n(0) 
                 , m_base(TightVariableByte::decode(data, &m_n, 1))
                 , m_blocks(succinct::util::ceil_div(m_n, BlockCodec::block_size))
                 , m_block_maxs(m_base)
@@ -90,7 +90,6 @@ namespace quasi_succinct {
             {
                 assert(lower_bound >= m_cur_docid);
                 if (QS_UNLIKELY(lower_bound > m_cur_block_max)) {
-                    // binary search seems to perform worse here
                     if (lower_bound > block_max(m_blocks - 1)) {
                         m_cur_docid = m_universe;
                         return;
