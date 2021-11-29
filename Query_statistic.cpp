@@ -1,4 +1,3 @@
-//Cache Pref Intra  考虑适配读块大小 根据topk值对shard重排且考虑global阈值初始设置为topk,预测+升一级并行度预测 
 #include<iostream>
 #include<vector>
 #include<stdint.h>
