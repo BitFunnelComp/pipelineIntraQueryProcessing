@@ -1,5 +1,3 @@
-//libaio的异步IO 全局动态cache+预取 注意cache大小至少得能包含一个线程的所有查询数据（e.g.128MB）该方案锁的粒度更大（查询为单位锁）
-//预取将下一批查询中高频词进行预取
 #include<iostream>
 #include<vector>
 #include<stdint.h>
