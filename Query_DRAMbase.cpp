@@ -1,4 +1,3 @@
-//NVM Cache Pref 根据topk值对shard重排且考虑global阈值初始设置为topk,预取未开启,topk重排，预测+升一级并行度预测  Intra基本check ok
 #include<iostream>
 #include<vector>
 #include<stdint.h>
@@ -63,7 +62,6 @@ struct topk_queue {
 	topk_queue()
 	: m_k(topK)
 	{
-		//omp_init_lock(&lock);
 	}
 	void updateScore()
 	{
@@ -110,20 +108,17 @@ struct topk_queue {
 		m_q.clear();
 		qid = queryid;
 	}
-	//private:
 	uint64_t m_k;
 	std::vector<float> m_q;
 	unsigned qid;
 };
 
-//const unsigned constShardcount = 30;
-vector<unsigned>SharddocIDThresh(constShardcount + 1);//每组docID的范围
-queue<Task>queryTasks;//查询任务队列
-vector<QueryInfo>queryInfo;//查询时间分配线程数等信息
+vector<unsigned>SharddocIDThresh(constShardcount + 1);
+queue<Task>queryTasks;
+vector<QueryInfo>queryInfo;
 vector<topk_queue>scoreQueue;
 
 
-//vector<int64_t>List_offset;
 vector<int64_t>Head_offset;
 string indexFileName = "";
 vector<vector<double>>query_Times;
@@ -141,22 +136,20 @@ unsigned num_docs = 0;
 unsigned curQID = 0;
 
 
-//pread part
-const int AIOLIST_SIZE = 16;//程序设置请求数
+const int AIOLIST_SIZE = 16;
 
-vector<vector<Node*>>NodeforQuery;//query包含的数据
+vector<vector<Node*>>NodeforQuery;
 vector<vector<Node*>>Nodeforthread;
 int IndexFile;
 
 LRUCache global_LRUCache;
 
-//预取队列
-vector<Node*>prefetchList(AIOLIST_SIZE*constShardcount);//大小可能需要修改！！！
+vector<Node*>prefetchList(AIOLIST_SIZE*constShardcount);
 int64_t curBandwidth = 0;
 
 string queryFilename = "";
-vector<vector<pair<unsigned, float>>>ShardScore;//query-(shardid,score)
-vector<vector<float>>TermTopkThreshShard;//term,shard
+vector<vector<pair<unsigned, float>>>ShardScore;
+vector<vector<float>>TermTopkThreshShard;
 vector<unsigned>assignedThreads;
 
 void initThreadStruct()
@@ -165,7 +158,7 @@ void initThreadStruct()
 	Nodeforthread.resize(threadCount);
 }
 
-void readListData(Node *node)//读数据，更新位置
+void readListData(Node *node)
 {
 	pread(IndexFile, node->aiodata.list_data, node->aiodata.readlength, node->aiodata.readoffset);
 	node->aiodata.curReadpos = node->aiodata.listlength;
@@ -178,9 +171,8 @@ void readListData(Node *node)//读数据，更新位置
 void readIOWork()
 {
 	int64_t curReadID = 0;
-	while (curQID == -1)//有查询未处理完///////////////////////////////(curQID < queries.size())
+	while (curQID == -1)
 	{
-		//cout << "In read" << endl;
 #pragma omp flush(curQID)
 		int cur = 0;
 		for (unsigned i = 0; i < prefetchList.size(); i++)
@@ -197,41 +189,35 @@ void readIOWork()
 	}
 	cout << "Out Pref" << endl;
 }
-bool cmpFreq(const pair<unsigned, unsigned>&a, const pair<unsigned, unsigned>&b)//根据查询频率降序
+bool cmpFreq(const pair<unsigned, unsigned>&a, const pair<unsigned, unsigned>&b)
 {
 	return a.second > b.second;
 }
 void detectIOWork()
 {
-	//string detectcommond = "iostat -d /dev/nvme0n1 1 -m 2 > " + indexFileName + "iostat.txt";///////测试间隔时间太长！1s才能一次
-	//就算是一直刷也1s一次,间隔太大！！如果我一直预取呢？一直让IOread线程跑16个词
-	//string filename = indexFileName + "iostat.txt";
 	while (curQID == -1)//(curQID < queries.size())
 	{
 #pragma omp flush(curQID)
-		usleep(1000);//睡1 ms
+		usleep(1000);
 #pragma omp flush(curBandwidth)
-		int64_t tmpbandwidth = curBandwidth / 1024;//MB/s
+		int64_t tmpbandwidth = curBandwidth / 1024;
 
 #pragma omp critical(bandwidth)
 		{
 			curBandwidth = 0;
 #pragma omp flush(curBandwidth)
 		}
-		if (tmpbandwidth > 2000)//if (tmpbandwidth > 2000)
+		if (tmpbandwidth > 2000)
 		{
 			continue;
 		}
-		//cout << "In detect" << endl;
 #pragma omp flush(curQID)
-		//得到接下来一批查询序列(线程数个)的查询词
 		unordered_map<unsigned, unsigned>querytermfreq;
 		for (unsigned i = curQID; i < curQID + threadCount && i < queries.size(); i++)
 		{
-			//querytermset.insert(querytermset.end(), queries[i].begin(), queries[i].end());
 			for (auto tid : queries[i])
 				querytermfreq[tid]++;
-		}//cout<<"BBB"<<querytermset.size()<<endl;
+		}
 		vector<pair<unsigned, unsigned>>querytermset(querytermfreq.begin(), querytermfreq.end());
 		sort(querytermset.begin(), querytermset.end(), cmpFreq);
 
@@ -246,15 +232,14 @@ void detectIOWork()
 #pragma omp critical(VisitsLRU)
 				{
 					bool flag = 0;
-					Node *node = global_LRUCache.Get_Prefetch(j, querytermset[i].first, flag);//cout<<"here 2"<<endl;
-					if (flag == 0 && node != NULL)//在cache中未命中，且当前cache有他的空间，交由IOread线程读
+					Node *node = global_LRUCache.Get_Prefetch(j, querytermset[i].first, flag);
+					if (flag == 0 && node != NULL)
 					{
 #pragma omp atomic
 						node->aiodata.usedfreq++;
 						prefetchList[prefid] = node;
-						//当前词的当前块如果不能放在cache中，取下一个词，当前词留给CPU自己算
 						prefid++;
-					}//cout<<"here out"<<endl;
+					}
 				}
 			}
 		}
@@ -333,24 +318,23 @@ struct block_posting_list {
 
 		unsigned m_shardid;
 		unsigned m_termid;
-		unsigned m_baseblockid;//起始块id
+		unsigned m_baseblockid;
 
-		unsigned m_lid;//在NodeforQuery中编号
+		unsigned m_lid;
 		int m_threadid;
 
 		uint32_t block_max(uint32_t block) const
 		{
 			return ((uint32_t const*)m_block_maxs)[block];
 		}
-		void QS_NOINLINE decode_docs_block(uint64_t block)//block是实际块号
+		void QS_NOINLINE decode_docs_block(uint64_t block)
 		{
-			//在数据m_blocks_data上的起始偏移
 			uint32_t base_endpoint = m_baseblockid
 				? ((uint32_t const*)m_block_endpoints)[m_baseblockid - 1]
 				: 0;
 
 			int64_t tmpendpoint = 0;
-			if (block == m_blocks - 1)//最后一个块
+			if (block == m_blocks - 1)
 			{
 				tmpendpoint = List_offset[m_termid + 1] - List_offset[m_termid];
 			}
@@ -359,21 +343,16 @@ struct block_posting_list {
 				tmpendpoint = ((uint32_t const*)m_block_endpoints)[block];
 			}
 			tmpendpoint -= base_endpoint;
-			//if (m_shardid == 25)cout << "Before while " << m_termid << "=>" << NodeforQuery[m_threadid][m_lid]->aiodata.curReadpos << " " << tmpendpoint << " m_shardid=" << m_shardid << " listlength=" << NodeforQuery[m_threadid][m_lid]->aiodata.listlength << endl;
-			//int64_t tmpcount = 0;
 #pragma omp flush(NodeforQuery)
-			while (NodeforQuery[m_threadid][m_lid]->aiodata.curReadpos < tmpendpoint)//轮询当前数据是否读到需要部分
+			while (NodeforQuery[m_threadid][m_lid]->aiodata.curReadpos < tmpendpoint)
 			{
 #pragma omp flush(NodeforQuery)
-				//cout << "m_termid=" << m_termid << " listLength= " << List_offset[m_termid + 1] - List_offset[m_termid] << " curReadpos=" << curReadpos[m_termid] << " tmpendpoint" << tmpendpoint << endl;
-				//tmpcount++;
 			}
-			//if(m_shardid==25)cout << "End while " << m_termid << "=>" << NodeforQuery[m_threadid][m_lid]->aiodata.curReadpos << " " << tmpendpoint << endl;
 			static const uint64_t block_size = Codec::block_size;
 			uint32_t endpoint = block
 				? ((uint32_t const*)m_block_endpoints)[block - 1]
 				: 0;
-			uint8_t const* block_data = m_blocks_data + endpoint - base_endpoint;//
+			uint8_t const* block_data = m_blocks_data + endpoint - base_endpoint;
 
 			m_cur_block_size =
 				((block + 1) * block_size <= size())
@@ -384,7 +363,6 @@ struct block_posting_list {
 				m_codec.decode(block_data, m_docs_buf.data(),
 				m_cur_block_max - cur_base - (m_cur_block_size - 1),
 				m_cur_block_size);
-			//if (m_termid == 34012334)cout << "decode data over" << endl;
 			m_docs_buf[0] += cur_base;
 
 			m_cur_block = block;
@@ -404,9 +382,8 @@ struct block_posting_list {
 		}
 		void reset()
 		{
-			decode_docs_block(0 + m_baseblockid); //cout << "Here reset" << endl;
-			next_geq(SharddocIDThresh[m_shardid]);//提前跳到对应数据块
-			//cout << "nexteq" << endl;
+			decode_docs_block(0 + m_baseblockid); 
+			next_geq(SharddocIDThresh[m_shardid]);
 		}
 		document_enumerator(uint8_t const* headdata, uint8_t const* listdata, unsigned universe, unsigned shardid, unsigned termid, unsigned lid)
 			: m_n(0)
@@ -424,7 +401,6 @@ struct block_posting_list {
 			m_docs_buf.resize(Codec::block_size);
 			m_freqs_buf.resize(Codec::block_size);
 			m_threadid = omp_get_thread_num();
-			//reset();
 		}
 		void inline next()
 		{
@@ -443,7 +419,7 @@ struct block_posting_list {
 		}
 		uint64_t docid() const
 		{
-			return m_cur_docid; //>= SharddocIDThresh[m_shardid + 1] ? m_universe : m_cur_docid;
+			return m_cur_docid;
 		}
 		uint64_t inline freq()
 		{
@@ -461,11 +437,9 @@ struct block_posting_list {
 		uint64_t size() const
 		{
 			return m_n;
-			//return splitInfo[m_shardid][m_termid].doc_count;
 		}
 		void  inline next_geq(uint64_t lower_bound)
 		{
-			//if (m_shardid == 25)cout << "In" << endl;
 			if (QS_UNLIKELY(lower_bound > m_cur_block_max)) {
 				if (lower_bound >= SharddocIDThresh[m_shardid + 1] || lower_bound > block_max(m_blocks - 1)) {
 					m_cur_docid = m_universe;
@@ -486,18 +460,6 @@ struct block_posting_list {
 			}
 			m_cur_docid = m_cur_docid >= SharddocIDThresh[m_shardid + 1] ? m_universe : m_cur_docid;
 		}
-
-		/*void  inline move(uint64_t pos)
-		{
-		assert(pos >= position());
-		uint64_t block = pos / Codec::block_size;
-		if (QS_UNLIKELY(block != m_cur_block)) {
-		decode_docs_block(block);
-		}
-		while (position() < pos) {
-		m_cur_docid += m_docs_buf[++m_pos_in_block] + 1;
-		}
-		}*/
 
 	};
 
@@ -615,8 +577,6 @@ void read_SplitInfo(string filename)
 		{
 			fread(&tmps.split_blockid, sizeof(unsigned), 1, file);
 			fread(&tmpoffset, sizeof(int64_t), 1, file);
-			//fread(&tmps.split_offset, sizeof(int64_t), 1, file);
-			//fread(&tmps.doc_count, sizeof(int64_t), 1, file);
 			splitInfo[i][j] = tmps;
 		}
 	}
@@ -631,8 +591,6 @@ void read_SplitInfo(string filename)
 		}
 	}
 	unsigned docIDinterval = ceil((double)num_docs / constShardcount);
-	/*for (unsigned i = 0; i <= constShardcount; i++)
-	SharddocIDThresh[i] = i*docIDinterval;*/
 	SharddocIDThresh[0] = 0; SharddocIDThresh[1] = 5741824; SharddocIDThresh[2] = 9980428; SharddocIDThresh[3] = 15681198; SharddocIDThresh[4] = 21977502;
 	SharddocIDThresh[5] = 28980684; SharddocIDThresh[6] = 36028534; SharddocIDThresh[7] = 43169356; SharddocIDThresh[8] = 50220423;
 	cout << "init thresh over" << endl;
@@ -671,8 +629,7 @@ void read_AssignedThreads()
 {
 	assignedThreads.resize(queries.size());
 	vector<int>transform = { 1, 2, 4, 8 };
-	string filename = "/home/lxy/NVM_code/RawData/ClueWeb/Feature/Regression/Predict/ClueWebPall.txt";////////////////////////
-	//string filename="/home/lxy/NVM_code/Data/Reorder/IntraQuery/OptimalPall/NoReorder/NonReorder/FeatureTerm/Gov2Predict.txt";
+	string filename = "";
 	ifstream fin(filename);
 	int threadsnum;
 	for (unsigned i = 0; i < queries.size(); i++)
@@ -689,7 +646,7 @@ void read_AssignedThreads()
 void read_ShardScore()
 {
 	ShardScore.resize(queries.size());
-	string filename = "/home/lxy/NVM_code/Data/Reorder/IntraQuery/ScoreStatistic/ScoreGov2BMW.txt";
+	string filename = "";
 	ifstream fin(filename);
 	for (unsigned i = 0; i < queries.size(); i++)
 	{
@@ -742,24 +699,22 @@ struct and_query {
 		NodeforQuery[threadid].clear();
 		Nodeforthread[threadid].clear();
 		int64_t tmpcount = 0;
-		//cout << "AAA" << endl;
-		//vector<Node*>tmpNode;
 #pragma omp critical(VisitsLRU)
 		{
 			Node*node;
 			for (auto term : terms)
 			{
 				bool flag = 0;
-				node = global_LRUCache.Get(shardid, term, flag); //cout << "After get" << endl;
+				node = global_LRUCache.Get(shardid, term, flag); 
 #pragma omp atomic
 				node->aiodata.usedfreq++;
 				NodeforQuery[threadid].push_back(node);
-				if (flag == 0)//在LRU中miss了
+				if (flag == 0)
 				{
-					Nodeforthread[threadid].push_back(node); //cout << "node " << node->aiodata.termid << " miss" << endl;
+					Nodeforthread[threadid].push_back(node); 
 				}
 			}
-		}//cout << "BBB" << endl;
+		}
 		for (unsigned i = 0; i < Nodeforthread[threadid].size(); i++)
 			readListData(Nodeforthread[threadid][i]);
 
@@ -769,12 +724,11 @@ struct and_query {
 			enum_type tmplist(Head_Data.data() + Head_offset[term], tmpaio.list_data + tmpaio.offsetForenums, num_docs, shardid, term, tmpcount);
 			enums.push_back(tmplist);
 			tmpcount++;
-		}//cout << "DDD" << endl;
+		}
 		for (unsigned i = 0; i < enums.size(); i++)
 		{
 			enums[i].reset();
 		}
-		//cout << "EEE" << endl;
 		std::sort(enums.begin(), enums.end(),
 			[](enum_type const& lhs, enum_type const& rhs) {
 			return lhs.size() < rhs.size();
@@ -800,7 +754,6 @@ struct and_query {
 				i = 1;
 			}
 		}
-		//cout << "FFF" << endl;
 		return results;
 	}
 
@@ -842,7 +795,7 @@ void read_TermtopKThresh(string filename)
 		{
 			score = max(score, termTopkThresh[t.first] * t.second);
 		}
-		globalScoreThresh[i] = max(0.0, score - 0.0001);//为了保证凑满topk
+		globalScoreThresh[i] = max(0.0, score - 0.0001);
 	}
 }
 void read_TermTopkThreshShard(string filename)
@@ -854,14 +807,11 @@ void read_TermTopkThreshShard(string filename)
 	while (getline(fin, str))
 	{
 		stringstream ss(str);
-		//cout << str << endl;
 		string field = "";
 		while (getline(ss, field, '\t'))
 		{
-			//cout << field << " ";
 			TermTopkThreshShard[linecount].push_back(atof(field.c_str()));
 		}
-		//cout << endl;
 		linecount++;
 	}
 	fin.close();
@@ -900,7 +850,7 @@ struct block_max_wand_query {
 #pragma omp atomic
 				node->aiodata.usedfreq++;
 				NodeforQuery[threadid].push_back(node);
-				if (flag == 0)//在LRU中miss了
+				if (flag == 0)
 					Nodeforthread[threadid].push_back(node);
 			}
 		}
@@ -930,7 +880,6 @@ struct block_max_wand_query {
 
 
 		auto sort_enums = [&]() {
-			// sort enumerators by increasing docid
 			std::sort(ordered_enums.begin(), ordered_enums.end(),
 				[](scored_enum *lhs, scored_enum *rhs) {
 				return lhs->docs_enum.docid() < rhs->docs_enum.docid();
@@ -941,8 +890,6 @@ struct block_max_wand_query {
 		sort_enums();
 
 		while (true) {
-
-			// find pivot
 			float upper_bound = 0.f;
 			size_t pivot;
 			bool found_pivot = false;
@@ -962,8 +909,6 @@ struct block_max_wand_query {
 						break;
 				}
 			}
-
-			// no pivot found, we can stop the search
 			if (!found_pivot) {
 				break;
 			}
@@ -980,9 +925,6 @@ struct block_max_wand_query {
 
 
 			if (scoreQueue[threadid].would_enter(block_upper_bound)) {
-
-
-				// check if pivot is a possible match
 				if (pivot_id == ordered_enums[0]->docs_enum.docid()) {
 					float score = 0;
 					float norm_len = m_wdata.norm_len(pivot_id);
@@ -1008,7 +950,6 @@ struct block_max_wand_query {
 					}
 
 					scoreQueue[threadid].insert(score);
-					// resort by docid
 					sort_enums();
 
 				}
@@ -1018,8 +959,6 @@ struct block_max_wand_query {
 					for (; ordered_enums[next_list]->docs_enum.docid() == pivot_id;
 						--next_list);
 						ordered_enums[next_list]->docs_enum.next_geq(pivot_id);
-
-					// bubble down the advanced list
 					for (size_t i = next_list + 1; i < ordered_enums.size(); ++i) {
 						if (ordered_enums[i]->docs_enum.docid() <=
 							ordered_enums[i - 1]->docs_enum.docid()) {
@@ -1046,7 +985,6 @@ struct block_max_wand_query {
 						q_weight = ordered_enums[i]->q_weight;
 					}
 				}
-				// TO BE FIXED (change with num_docs())
 				uint64_t next_jump = uint64_t(-2);
 
 				if (pivot + 1 < ordered_enums.size()) {
@@ -1070,14 +1008,7 @@ struct block_max_wand_query {
 				if (next <= ordered_enums[pivot]->docs_enum.docid()) {
 					next = ordered_enums[pivot]->docs_enum.docid() + 1;
 				}
-				//#pragma omp critical
-				//{ if (shardid == 25 && queryid == 2)cout << "GGG22" << " next=" << next << " nextlist=" << next_list << endl; }
 				ordered_enums[next_list]->docs_enum.next_geq(next);
-
-
-				//#pragma omp critical
-				//{ if (shardid == 25 && queryid == 2)cout << "GGG3" << endl; }
-				// bubble down the advanced list
 				for (size_t i = next_list + 1; i < ordered_enums.size(); ++i) {
 					if (ordered_enums[i]->docs_enum.docid() <
 						ordered_enums[i - 1]->docs_enum.docid()) {
@@ -1089,15 +1020,11 @@ struct block_max_wand_query {
 				}
 			}
 		}
-		//m_topk.finalize();
-		//m_topk.test_write_topK("BMW");
 		return scoreQueue[threadid].m_q.size();
-		//return 0;
 	}
 
 private:
 	quasi_succinct::wand_data<scorer_type> const& m_wdata;
-	//topk_queue m_topk;
 };
 
 struct wand_query {
@@ -1133,7 +1060,7 @@ struct wand_query {
 #pragma omp atomic
 				node->aiodata.usedfreq++;
 				NodeforQuery[threadid].push_back(node);
-				if (flag == 0)//在LRU中miss了
+				if (flag == 0)
 					Nodeforthread[threadid].push_back(node);
 			}
 		}
@@ -1161,7 +1088,6 @@ struct wand_query {
 		}
 
 		auto sort_enums = [&]() {
-			// sort enumerators by increasing docid
 			std::sort(ordered_enums.begin(), ordered_enums.end(),
 				[](scored_enum* lhs, scored_enum* rhs) {
 				return lhs->docs_enum.docid() < rhs->docs_enum.docid();
@@ -1169,7 +1095,6 @@ struct wand_query {
 		};
 		sort_enums();
 		while (true) {
-			// find pivot
 			float upper_bound = 0;
 			size_t pivot;
 			bool found_pivot = false;
@@ -1183,12 +1108,9 @@ struct wand_query {
 					break;
 				}
 			}
-			// no pivot found, we can stop the search
 			if (!found_pivot) {
 				break;
 			}
-
-			// check if pivot is a possible match
 			uint64_t pivot_id = ordered_enums[pivot]->docs_enum.docid();
 			if (pivot_id == ordered_enums[0]->docs_enum.docid()) {
 				float score = 0;
@@ -1203,16 +1125,13 @@ struct wand_query {
 				}
 
 				scoreQueue[threadid].insert(score);
-				// resort by docid
 				sort_enums();
 			}
 			else {
-				// no match, move farthest list up to the pivot
 				uint64_t next_list = pivot;
 				for (; ordered_enums[next_list]->docs_enum.docid() == pivot_id;
 					--next_list);
 					ordered_enums[next_list]->docs_enum.next_geq(pivot_id);
-				// bubble down the advanced list
 				for (size_t i = next_list + 1; i < ordered_enums.size(); ++i) {
 					if (ordered_enums[i]->docs_enum.docid() <
 						ordered_enums[i - 1]->docs_enum.docid()) {
@@ -1224,17 +1143,13 @@ struct wand_query {
 				}
 			}
 		}
-		//m_topk.finalize();
-		//m_topk.test_write_topK("WAND");
 		return scoreQueue[threadid].m_q.size();
-		//return 0;
 	}
 
 
 
 private:
 	quasi_succinct::wand_data<scorer_type> const& m_wdata;
-	//topk_queue m_topk;
 };
 struct maxscore_query {
 
@@ -1269,7 +1184,7 @@ struct maxscore_query {
 #pragma omp atomic
 				node->aiodata.usedfreq++;
 				NodeforQuery[threadid].push_back(node);
-				if (flag == 0)//在LRU中miss了
+				if (flag == 0)
 					Nodeforthread[threadid].push_back(node);
 			}
 		}
@@ -1296,7 +1211,6 @@ struct maxscore_query {
 			ordered_enums.push_back(&en);
 		}
 
-		// sort enumerators by increasing maxscore
 		std::sort(ordered_enums.begin(), ordered_enums.end(),
 			[](scored_enum* lhs, scored_enum* rhs) {
 			return lhs->max_weight < rhs->max_weight;
@@ -1332,7 +1246,6 @@ struct maxscore_query {
 				}
 			}
 
-			// try to complete evaluation with non-essential lists
 			for (size_t i = non_essential_lists - 1; i + 1 > 0; --i) {
 				if (!scoreQueue[threadid].would_enter(score + upper_bounds[i])) {
 					break;
@@ -1345,7 +1258,6 @@ struct maxscore_query {
 			}
 
 			if (scoreQueue[threadid].insert(score)) {
-				// update non-essential lists
 				while (non_essential_lists < ordered_enums.size() &&
 					!scoreQueue[threadid].would_enter(upper_bounds[non_essential_lists])) {
 					non_essential_lists += 1;
@@ -1355,16 +1267,12 @@ struct maxscore_query {
 			cur_doc = next_doc;
 		}
 
-		//m_topk.finalize();
-		//m_topk.test_write_topK("MAXSCORE");
-		//return m_topk.topk().size();
 		return scoreQueue[threadid].m_q.size();
 	}
 
 
 private:
 	quasi_succinct::wand_data<scorer_type> const& m_wdata;
-	//topk_queue m_topk;
 };
 struct ranked_and_query {
 
@@ -1398,7 +1306,7 @@ struct ranked_and_query {
 #pragma omp atomic
 				node->aiodata.usedfreq++;
 				NodeforQuery[threadid].push_back(node);
-				if (flag == 0)//在LRU中miss了
+				if (flag == 0)
 					Nodeforthread[threadid].push_back(node);
 			}
 		}
@@ -1424,8 +1332,6 @@ struct ranked_and_query {
 		for (auto& en : enums) {
 			ordered_enums.push_back(&en);
 		}
-
-		// sort enumerators by increasing freq
 		std::sort(ordered_enums.begin(), ordered_enums.end(),
 			[](scored_enum* lhs, scored_enum* rhs) {
 			return lhs->docs_enum.size() < rhs->docs_enum.size();
@@ -1457,16 +1363,11 @@ struct ranked_and_query {
 				i = 1;
 			}
 		}
-
-		//m_topk.finalize();
-		//m_topk.test_write_topK("RANKAND");
-		//return m_topk.topk().size();
 		return scoreQueue[threadid].m_q.size();
 	}
 
 private:
 	quasi_succinct::wand_data<scorer_type> const& m_wdata;
-	//topk_queue m_topk;
 };
 
 void initial_data()
@@ -1478,8 +1379,7 @@ void initial_data()
 	read_BlockWand_Data(filename);
 	read_SplitInfo(filename);
 	read_Endpoint(filename);
-	read_query("/home/lxy/NVM_code/RawData/ClueWeb/Query/ClueWebQueryT_Test.txt");//////////////
-	//read_query("/home/lxy/NVM_code/Data/AOL/AOL_query_test_rand100.txt");
+	read_query("");
 	scoreQueue.resize(threadCount + 1);
 	queryLock.resize(queries.size());
 	globalScoreThresh.resize(queries.size());
@@ -1489,8 +1389,8 @@ void initial_data()
 	read_AssignedThreads();
 	read_ShardScore();
 
-	read_TermtopKThresh("/home/lxy/NVM_code/Data/Reorder/IntraQuery/topKScoreThresh/ClueWebtop10Score.txt");
-	read_TermTopkThreshShard("/home/lxy/NVM_code/Data/Reorder/IntraQuery/topKScoreThresh/ClueWeb/ClueWebtop10ScoreShard.txt");
+	read_TermtopKThresh("");
+	read_TermTopkThreshShard("");
 }
 void print_statistics(string querytype)
 {
@@ -1530,7 +1430,6 @@ inline void do_not_optimize_away(T&& datum) {
 unsigned assignedThreadNum(unsigned qid)
 {
 	return assignedThreads[qid];
-	//return 4;
 }
 bool cmpShardScore(const pair<unsigned, float>&a, const pair<unsigned, float>&b)
 {
@@ -1565,15 +1464,13 @@ void cal_FragScore(unsigned queryid)
 			avgScore += (sumscore / blockcount);
 		}
 
-		//auto terms = query_freqs(queries[queryid]);
 		for (auto t : terms)
 		{
 			topKScore = max(topKScore, TermTopkThreshShard[t.first][f] * t.second);
 		}
 
 		ShardScore[queryid][f].first = f;
-		//ShardScore[queryid][f].second = avgmaxScore;//累加段内每个块最大值的合，分数最高值
-		ShardScore[queryid][f].second = topKScore;//累加每个词在该段内topK分数阈值，分数最低值
+		ShardScore[queryid][f].second = topKScore;
 	}
 }
 void assignedQuery()
@@ -1589,14 +1486,9 @@ void assignedQuery()
 		cal_FragScore(i);
 		sort(ShardScore[i].begin(), ShardScore[i].end(), cmpShardScore);
 
-		/*shards[0].push_back(0); shards[0].push_back(4);
-		shards[1].push_back(1); shards[1].push_back(5);
-		shards[2].push_back(2); shards[2].push_back(6);
-		shards[3].push_back(3); shards[3].push_back(7);*/
 		for (unsigned t = 0; t < constShardcount; t++)
 		{
-			shards[t%tasknum].push_back(ShardScore[i][t].first);//任务1：top1+top4  任务2：top2+top5
-			//shards[t / tasksize].push_back(ShardScore[i][t].first);//任务1：最高分两个  任务2：次高分2两个
+			shards[t%tasknum].push_back(ShardScore[i][t].first);
 		}
 
 		Task task;
@@ -1622,7 +1514,7 @@ bool cmpScore(ListScore const &a, ListScore const &b)
 	return a.score > b.score;
 }
 void warmUpLRUCache()
-{//cout<<"Warm start"<<endl;
+{
 	vector<ListScore>listscore(List_offset.size() - 1);
 	for (unsigned i = 0; i < listscore.size(); i++)
 	{
@@ -1634,20 +1526,19 @@ void warmUpLRUCache()
 
 	int64_t off = 0, i;
 	for (i = 0; i < listscore.size(); i++)
-	{//cout<<"list "<<i<<" off="<<off<<endl;
+	{
 		if (off >= CACHE_SIZE)break;
 		for (unsigned j = 0; j < constShardcount; j++)
 		{
-			//cout<<"shard "<<j<<" off="<<off<<endl;
 			unsigned term = listscore[i].termid;
 			bool flag = 0;
-			Node *node = global_LRUCache.Get(j, term, flag);//cout<<"AA"<<endl;
+			Node *node = global_LRUCache.Get(j, term, flag);
 			if (flag == 1)cout << "global_LRUCache.Get wrong" << endl;
 			pread(IndexFile, node->aiodata.list_data, node->aiodata.readlength, node->aiodata.readoffset);
 			node->aiodata.curSendpos = node->aiodata.listlength;
 			node->aiodata.memoffset = node->aiodata.readlength;
 			node->aiodata.readoffset = node->aiodata.readlength;
-			node->aiodata.curReadpos = node->aiodata.listlength;//cout<<"BB"<<endl;
+			node->aiodata.curReadpos = node->aiodata.listlength;
 			off += node->aiodata.readlength;
 			if (off >= CACHE_SIZE)break;
 		}
@@ -1668,12 +1559,12 @@ template <typename QueryOperator>
 void perform_query(QueryOperator&& query_op, Task task)
 {
 	auto tick = get_time_usecs();
-	unsigned result = 0;//result只对and有意义
+	unsigned result = 0;
 	unsigned threadid = omp_get_thread_num();
 	scoreQueue[threadid].clear(task.queryid);
 	for (unsigned t = 0; t < task.shardids.size(); t++)
 	{
-		result += query_op(task.shardids[t], task.queryid);//cout<<threadid<<endl;
+		result += query_op(task.shardids[t], task.queryid);
 		updateUsedfreq();
 	}
 #pragma omp critical(QueryInfo)
@@ -1684,7 +1575,6 @@ void perform_query(QueryOperator&& query_op, Task task)
 		if (queryInfo[task.queryid].time == 0 || queryInfo[task.queryid].time>tick)queryInfo[task.queryid].time = tick;
 		queryInfo[task.queryid].threadcount--;
 #pragma omp flush(queryInfo)
-		//最后执行结束
 		if (queryInfo[task.queryid].threadcount == 0){
 			sort(queryInfo[task.queryid].scoreHeap.rbegin(), queryInfo[task.queryid].scoreHeap.rend());
 			queryInfo[task.queryid].scoreHeap.resize(min(topK, (unsigned)queryInfo[task.queryid].scoreHeap.size()));
@@ -1692,14 +1582,9 @@ void perform_query(QueryOperator&& query_op, Task task)
 			auto end = get_time_usecs();
 			queryInfo[task.queryid].time = end - queryInfo[task.queryid].time;
 			curQID++;
-			//#pragma omp critical
-			//{cout << "**************************************" << curQID << "  " << task.queryid << endl; }
 #pragma omp flush(curQID)
 		}
 	}
-	//#pragma omp critical
-	//{if (task.queryid == 94)cout << "GGG" << threadid << endl; }
-	//cout<<"Perform over"<<endl;
 }
 
 template <typename QueryOperator>
@@ -1723,7 +1608,6 @@ void ProcessQuery(vector<QueryOperator>&queryop)
 		}
 #pragma omp flush(curQID)
 	}
-	//cout<<"Process over"<<endl;
 }
 
 
@@ -1756,8 +1640,6 @@ int main(int argc, char *argv[])
 	IndexFile = open((indexFileName + ".list").c_str(), O_RDONLY | O_DIRECT);
 	initial_data();
 	cout << "initial data over" << endl;
-
-	//先一个线程用长链填满LRUcache
 	warmUpLRUCache();
 	cout << "Warm Up over" << endl;
 
@@ -1779,7 +1661,6 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
-		//WAND查询逻辑
 		quasi_succinct::wand_data<> wdata;
 		boost::iostreams::mapped_file_source md(indexFileName + ".wand");
 		succinct::mapper::map(wdata, md, succinct::mapper::map_flags::warmup);
@@ -1802,7 +1683,6 @@ int main(int argc, char *argv[])
 			}
 			double elapsed = double(get_time_usecs() - tick);
 			cout << "Performed MAXSCORE query, sum time=" << elapsed << "throught put=" << queries.size() / elapsed * 1000000 << endl;
-			//writeResult("MAXSCORE");
 		}
 		else if (querytype == "WAND")
 		{
@@ -1823,7 +1703,6 @@ int main(int argc, char *argv[])
 			}
 			double elapsed = double(get_time_usecs() - tick);
 			cout << "Performed WAND query, sum time=" << elapsed << "throught put=" << queries.size() / elapsed * 1000000 << endl;
-			//writeResult("WAND");
 		}
 		else if (querytype == "RANKAND")
 		{
@@ -1844,7 +1723,6 @@ int main(int argc, char *argv[])
 			}
 			double elapsed = double(get_time_usecs() - tick);
 			cout << "Performed RANKAND query, sum time=" << elapsed << "throught put=" << queries.size() / elapsed * 1000000 << endl;
-			//writeResult("RANKAND");
 		}
 		else if (querytype == "BMW")
 		{
@@ -1865,7 +1743,6 @@ int main(int argc, char *argv[])
 			}
 			double elapsed = double(get_time_usecs() - tick);
 			cout << "Performed BMW query, sum time=" << elapsed << "throught put=" << queries.size() / elapsed * 1000000 << endl;
-			//writeResult("BMW");
 		}
 	}
 
@@ -1873,4 +1750,3 @@ int main(int argc, char *argv[])
 	cout << "miss size=" << global_LRUCache.miss_size << endl;
 
 }
-//Before while 31726210=>64173 88 m_shardid=4 listlength=409028
