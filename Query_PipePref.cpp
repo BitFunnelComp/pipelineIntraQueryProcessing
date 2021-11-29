@@ -1198,7 +1198,6 @@ void cal_FragScore(unsigned queryid)
 			avgScore += (sumscore / blockcount);
 		}
 
-		//auto terms = query_freqs(queries[queryid]);
 		for (auto t : terms)
 		{
 			topKScore = max(topKScore, TermTopkThreshShard[t.first][f] * t.second);
