@@ -11,9 +11,6 @@
 using namespace FastPForLib;
 namespace quasi_succinct {
 
-    // workaround: VariableByte::decodeArray needs the buffer size, while we
-    // only know the number of values. It also pads to 32 bits. We need to
-    // rewrite
     class TightVariableByte {
     public:
         template<uint32_t i>
@@ -32,10 +29,6 @@ namespace quasi_succinct {
             uint8_t * bout = out;
             for (size_t k = 0; k < length; ++k) {
                 const uint32_t val(in[k]);
-                /**
-                 * Code below could be shorter. Whether it could be faster
-                 * depends on your compiler and machine.
-                 */
                 if (val < (1U << 7)) {
                     *bout = static_cast<uint8_t>(val | (1U << 7));
                     ++bout;
@@ -105,8 +98,6 @@ namespace quasi_succinct {
     struct optpfor_block {
 
         struct codec_type : OPTPFor<4, Simple16<false>> {
-            // workaround: OPTPFor does not define decodeBlock, so we cut&paste
-            // the code
             uint32_t const* decodeBlock(const uint32_t *in, uint32_t *out, size_t& nvalue)
             {
                 const uint32_t * const initout(out);
@@ -124,7 +115,7 @@ namespace quasi_succinct {
                 assert(twonexceptions >= 2 * nExceptions);
                 in += encodedExceptionsSize;
 
-                uint32_t * beginout(out);// we use this later
+                uint32_t * beginout(out);
 
                 for (uint32_t j = 0; j < BlockSize; j += 32) {
                     fastunpack(in, out, b);
@@ -151,7 +142,6 @@ namespace quasi_succinct {
                            size_t n, std::vector<uint8_t>& out)
         {
             assert(n <= block_size);
-            // XXX this could be threadlocal static
             std::vector<uint8_t> buf(2 * 4 * block_size);
             size_t out_len = buf.size();
 
@@ -194,7 +184,6 @@ namespace quasi_succinct {
                            size_t n, std::vector<uint8_t>& out)
         {
             assert(n <= block_size);
-            // XXX this could be threadlocal static
             std::vector<uint8_t> buf(2 * 4 * block_size);
             size_t out_len = buf.size();
 
@@ -224,15 +213,13 @@ namespace quasi_succinct {
             if (n == block_size) {
                 const uint8_t * src = in;
                 uint32_t* dst = out;
-                size_t srclen = 2 * out_len * 4; // upper bound
+                size_t srclen = 2 * out_len * 4; 
                 size_t dstlen = out_len * 4;
                 out_len = 0;
                 while (out_len <= (n - 8)) {
                     out_len += varint_codec.decodeBlock(src, srclen, dst, dstlen);
                 }
-
-                // decodeBlock can overshoot, so we decode the last blocks in a
-                // local buffer
+                
                 while (out_len < n) {
                     uint32_t buf[8];
                     uint32_t* bufptr = buf;
@@ -276,7 +263,7 @@ namespace quasi_succinct {
                 bw.intrpolatvArray(inbuf.data(), n - 1, 0, 0, high);
                 bw.flush_bits();
                 uint8_t const* bufptr = (uint8_t const*)buf.data();
-                out.insert(out.end(), bufptr, bufptr + bw.size() * 4); // XXX wasting one word!
+                out.insert(out.end(), bufptr, bufptr + bw.size() * 4); 
             }
         }
 
