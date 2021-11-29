@@ -1,4 +1,3 @@
-//为最优线程数模型预测提取特征 注意topk分数分为查询的，链的，shard的
 #include<iostream>
 #include<vector>
 #include<stdint.h>
