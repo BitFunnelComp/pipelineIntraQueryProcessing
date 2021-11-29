@@ -1,5 +1,5 @@
-//libaioµÄÒì²½IO È«¾Ö¶¯Ì¬cache+Ô¤È¡ ×¢Òâcache´óĞ¡ÖÁÉÙµÃÄÜ°üº¬Ò»¸öÏß³ÌµÄËùÓĞ²éÑ¯Êı¾İ£¨e.g.128MB£©¸Ã·½°¸ËøµÄÁ£¶È¸ü´ó£¨²éÑ¯Îªµ¥Î»Ëø£©
-//Ô¤È¡½«ÏÂÒ»Åú²éÑ¯ÖĞ¸ßÆµ´Ê½øĞĞÔ¤È¡ check okÄ¿Ç°×îºÃ£¡£¡£¡
+//libaioçš„å¼‚æ­¥IO å…¨å±€åŠ¨æ€cache+é¢„å– æ³¨æ„cacheå¤§å°è‡³å°‘å¾—èƒ½åŒ…å«ä¸€ä¸ªçº¿ç¨‹çš„æ‰€æœ‰æŸ¥è¯¢æ•°æ®ï¼ˆe.g.128MBï¼‰è¯¥æ–¹æ¡ˆé”çš„ç²’åº¦æ›´å¤§ï¼ˆæŸ¥è¯¢ä¸ºå•ä½é”ï¼‰
+//é¢„å–å°†ä¸‹ä¸€æ‰¹æŸ¥è¯¢ä¸­é«˜é¢‘è¯è¿›è¡Œé¢„å–
 #include<iostream>
 #include<vector>
 #include<stdint.h>
@@ -39,24 +39,13 @@
 #include"Mycodec.hpp"
 #include"LRUCache_Prefetch.h"
 
-//namespaceĞŞ¸Ä£¡£¡£¡£¡
 using namespace std;
 
-//#define QS_LIKELY(x)       __builtin_expect((x),1)
-//#define QS_UNLIKELY(x)     __builtin_expect((x),0)
-//#define inline __attribute__((always_inline))
-//#define QS_NOINLINE __attribute__((noinline))
-
-
-//query²¿·Ö
-//vector<int64_t>List_offset;
 vector<int64_t>Head_offset;
 string indexFileName = "";
 vector<vector<double>>query_Times;
-//const uint64_t DISK_BLOCK = 4096;
 vector<uint8_t>Head_Data;
 
-//blockmaxwand²¿·Öshuju
 vector<uint64_t>Block_Start;
 vector<uint32_t>Block_Docid;
 vector<float>Block_Max_Term_Weight;
@@ -67,10 +56,9 @@ vector<term_id_vec> queries;
 unsigned num_docs = 0;
 int IndexFile;
 
-//AIO part
-const int AIOLIST_SIZE = 16;//³ÌĞòÉèÖÃÇëÇóÊı
+const int AIOLIST_SIZE = 16;
 unsigned threadCount = 4;
-const unsigned MAXREQUEST = 128;//×î´óÉèÖÃµÄÇëÇóÊı
+const unsigned MAXREQUEST = 128;
 
 vector<io_context_t> ctx;
 vector<vector<struct io_event>> events;
@@ -80,13 +68,8 @@ vector<int>curAIOLIST_SIZE;
 vector<int>curReadID;
 vector<vector<Node*>>Nodeforthread;
 
-//int64_t CACHESIZE = 1024 * 1024;
-//uint8_t **ListCache;
-//vector<unordered_map<unsigned, int64_t>>ListCache_hash;
-//vector<int64_t> ListMiss, ListHit;
 LRUCache global_LRUCache;
 
-//Ô¤È¡¶ÓÁĞ
 vector<Node*>prefetchList(AIOLIST_SIZE);
 unsigned curQueryid = 0;
 unsigned CPUAllFinish = 0;
@@ -134,28 +117,21 @@ void aioReadBlock()
 	while (io_getevents(ctx[threadid], curAIOLIST_SIZE[threadid], MAXREQUEST, events[threadid].data(), NULL) != curAIOLIST_SIZE[threadid])
 	{
 		;
-	}//cout << "aio 0" << endl;
+	}
 	for (unsigned i = 0; i < Nodeforthread[threadid].size(); i++)
 	{
-		//cout << Nodeforthread[threadid][i]->aiodata.termid << endl;
 		curReadpos[Nodeforthread[threadid][i]->aiodata.termid] = Nodeforthread[threadid][i]->aiodata.curSendpos;
 #pragma omp flush(curReadpos)
 	}
-	//cout << "aio 1" << endl;
-	/*ctx = 0;
-	if (io_setup(32, &ctx)) {
-	perror("io_setup"); cout<<"Here"<<endl;
-	return;
-	}*/
 	int64_t cur = 0, i = 0;
-	for (i = 0, cur = 0; cur < AIOLIST_SIZE&&Nodeforthread[threadid].size(); curReadID[threadid]++, i++)//×î¶à·¢AIOLIST_SIZE¸öÇëÇó,ÈôÓĞµÄÁ´¶ÁÍêÔò·¢ËÍÎ´¶ÁÍêÁ´µÄÇëÇó
+	for (i = 0, cur = 0; cur < AIOLIST_SIZE&&Nodeforthread[threadid].size(); curReadID[threadid]++, i++)//æœ€å¤šå‘AIOLIST_SIZEä¸ªè¯·æ±‚,è‹¥æœ‰çš„é“¾è¯»å®Œåˆ™å‘é€æœªè¯»å®Œé“¾çš„è¯·æ±‚
 	{
 		unsigned lid = curReadID[threadid] % Nodeforthread[threadid].size();
 		if (Nodeforthread[threadid][lid]->aiodata.listlength <= Nodeforthread[threadid][lid]->aiodata.curSendpos)
 		{
 			if (hasReadFinish()){ break; }
 			else { continue; }
-		}//cout << "this tid=" << AIOreadinfo[lid].tid << endl;
+		}
 		io_prep_pread(&readrequest[threadid][cur], IndexFile, Nodeforthread[threadid][lid]->aiodata.list_data + Nodeforthread[threadid][lid]->aiodata.memoffset, READ_BLOCK, Nodeforthread[threadid][lid]->aiodata.readoffset);
 		listrequest[threadid][cur] = &readrequest[threadid][cur];
 		Nodeforthread[threadid][lid]->aiodata.memoffset += READ_BLOCK;
@@ -166,15 +142,14 @@ void aioReadBlock()
 			curBandwidth += READ_BLOCK;
 #pragma omp flush(curBandwidth)
 		}
-		//cout << "IO term=" << Nodeforthread[threadid][lid]->aiodata.termid << " curSendpos=" << Nodeforthread[threadid][lid]->aiodata.curSendpos << endl;
+		
 		cur++;
-	}//cout << "aio 2" << endl;
-	curAIOLIST_SIZE[threadid] = cur; //cout << "aio 3" << endl;
-	if (cur == 0){ return; }//ËµÃ÷µ±Ç°ÒÑÎŞÊı¾İĞèÒª¶ÁÈ¡
+	}
+	curAIOLIST_SIZE[threadid] = cur; 
+	if (cur == 0){ return; }
 	if (io_submit(ctx[threadid], curAIOLIST_SIZE[threadid], listrequest[threadid].data()) != curAIOLIST_SIZE[threadid]) {
 		perror("io_submit"); cout << "submit 1 in aioReadBlock" << endl;
 	}
-	//cout << "aio 4" << endl;
 }
 
 bool hasReadFinishIOWork()
@@ -199,9 +174,8 @@ void readIOWork()
 	}
 
 	int64_t curReadID = 0;
-	while (CPUAllFinish < queries.size())//ÓĞ²éÑ¯Î´´¦ÀíÍê///////////////////////////////CPUallFinish < queries.size()
+	while (CPUAllFinish < queries.size())
 	{
-		//cout << "In read" << endl;
 #pragma omp flush(CPUAllFinish)
 		int cur = 0;
 		for (; cur < AIOLIST_SIZE; curReadID++)
@@ -226,14 +200,13 @@ void readIOWork()
 			}
 			cur++;
 		}
-		//if (cur == 0)cout << "IOreadover" << endl;
 		if (io_submit(ctxPref, cur, listrequestPref) != cur) {
 			perror("io_submit"); cout << "submit 1 in aioReadBlock" << endl;
 		}
 		while (io_getevents(ctxPref, cur, MAXREQUEST, eventsPref, NULL) != cur)
 		{
 			;
-		}//cout << "receive over" << endl;
+		}
 		for (int i = 0; i< prefetchList.size(); i++)
 		{
 			if (prefetchList[i] != NULL)
@@ -250,24 +223,20 @@ void readIOWork()
 #pragma omp flush (prefetchList)
 			}
 		}
-		//cout << "Out Read" << endl;
 	}
 }
-bool cmpFreq(const pair<unsigned, unsigned>&a, const pair<unsigned, unsigned>&b)//¸ù¾İ²éÑ¯ÆµÂÊ½µĞò
+bool cmpFreq(const pair<unsigned, unsigned>&a, const pair<unsigned, unsigned>&b)
 {
 	return a.second > b.second;
 }
 void detectIOWork()
 {
-	//string detectcommond = "iostat -d /dev/nvme0n1 1 -m 2 > " + indexFileName + "iostat.txt";///////²âÊÔ¼ä¸ôÊ±¼äÌ«³¤£¡1s²ÅÄÜÒ»´Î
-	//¾ÍËãÊÇÒ»Ö±Ë¢Ò²1sÒ»´Î,¼ä¸ôÌ«´ó£¡£¡Èç¹ûÎÒÒ»Ö±Ô¤È¡ÄØ£¿Ò»Ö±ÈÃIOreadÏß³ÌÅÜ16¸ö´Ê
-	//string filename = indexFileName + "iostat.txt";
 	while (CPUAllFinish < queries.size())
 	{
 #pragma omp flush(CPUAllFinish)
-		usleep(1000);//Ë¯1 ms
+		usleep(1000);
 #pragma omp flush(curBandwidth)
-		int64_t tmpbandwidth = curBandwidth / 1024;//MB/s
+		int64_t tmpbandwidth = curBandwidth / 1024;
 
 #pragma omp critical(bandwidth)
 		{
@@ -278,41 +247,37 @@ void detectIOWork()
 		{
 			continue;
 		}
-		//cout << "In detect" << endl;
 #pragma omp flush(curQueryid)
-		//µÃµ½½ÓÏÂÀ´Ò»Åú²éÑ¯ĞòÁĞ(Ïß³ÌÊı¸ö)µÄ²éÑ¯´Ê
 		unordered_map<unsigned, unsigned>querytermfreq;
 		for (int i = curQueryid; i < curQueryid + threadCount && i < queries.size(); i++)
 		{
-			//querytermset.insert(querytermset.end(), queries[i].begin(), queries[i].end());
 			for (auto tid : queries[i])
 				querytermfreq[tid]++;
-		}//cout<<"BBB"<<querytermset.size()<<endl;
+		}
 		vector<pair<unsigned, unsigned>>querytermset(querytermfreq.begin(), querytermfreq.end());
 		sort(querytermset.begin(), querytermset.end(), cmpFreq);
 		int curpos = 0;
 		for (int i = 0; i < prefetchList.size() && curpos<querytermset.size(); i++)
-		{//cout<<"i="<<i<<endl;
+		{
 #pragma omp flush (prefetchList)
-			if (prefetchList[i] == NULL)//µ±Ç°Ô¤È¡¶ÓÁĞÓĞ¿Õ
+			if (prefetchList[i] == NULL)
 			{
 #pragma omp critical(VisitsLRU)
 				{//cout<<"here"<<endl;
 					bool flag = 0;
-					Node *node = global_LRUCache.Get_Prefetch(querytermset[curpos].first, flag);//cout<<"here 2"<<endl;
-					if (flag == 0 && node != NULL)//ÔÚcacheÖĞÎ´ÃüÖĞ£¬ÇÒµ±Ç°cacheÓĞËûµÄ¿Õ¼ä£¬½»ÓÉIOreadÏß³Ì¶Á
+					Node *node = global_LRUCache.Get_Prefetch(querytermset[curpos].first, flag);
+					if (flag == 0 && node != NULL)
 					{
 #pragma omp atomic
 						usedFreq[querytermset[curpos].first]++;
 #pragma omp flush(usedFreq)
 						prefetchList[i] = node;
-						//curpos++;//µ±Ç°´ÊÈç¹û²»ÄÜ·ÅÔÚcacheÖĞ£¬È¡ÏÂÒ»¸ö´Ê£¬µ±Ç°´ÊÁô¸øCPU×Ô¼ºËã
-					}//cout<<"here out"<<endl;
+						
+					}
 				}
-				curpos++;//µ±Ç°´ÊÈç¹û²»ÄÜ·ÅÔÚcacheÖĞ£¬È¡ÏÂÒ»¸ö´Ê£¬µ±Ç°´ÊÁô¸øCPU×Ô¼ºËã
+				curpos++;
 			}
 		}
-		//cout << "Out detect" << endl;
 	}
 
 }
@@ -336,7 +301,7 @@ struct block_posting_list {
 		uint32_t m_cur_block_max;
 		uint32_t m_cur_block_size;
 		uint32_t m_cur_docid;
-		SIMDNewPfor m_codec;//±àÂë
+		SIMDNewPfor m_codec;
 		uint32_t m_termid;
 		int64_t m_lid;
 		int m_threadid;
@@ -354,33 +319,25 @@ struct block_posting_list {
 		void QS_NOINLINE decode_docs_block(uint64_t block)
 		{
 			int64_t tmpendpoint = 0;
-			if (block == m_blocks - 1)//×îºóÒ»¸ö¿é
+			if (block == m_blocks - 1)
 			{
 				tmpendpoint = List_offset[m_termid + 1] - List_offset[m_termid];
 			}
 			else
 			{
 				tmpendpoint = ((uint32_t const*)m_block_endpoints)[block];
-			}//cout << "Before while " << m_termid << "=>" << curReadpos[m_termid] << " " << tmpendpoint << endl;
-			//int64_t tmpcount = 0;
+			}
 #pragma omp flush(curReadpos)
-			while (curReadpos[m_termid] < tmpendpoint)//ÂÖÑ¯µ±Ç°Êı¾İÊÇ·ñ¶Áµ½ĞèÒª²¿·Ö
+			while (curReadpos[m_termid] < tmpendpoint)//è½®è¯¢å½“å‰æ•°æ®æ˜¯å¦è¯»åˆ°éœ€è¦éƒ¨åˆ†
 			{
 #pragma omp flush(curReadpos)
-				//cout << "m_termid=" << m_termid << " listLength= " << List_offset[m_termid + 1] - List_offset[m_termid] << " curReadpos=" << curReadpos[m_termid] << " tmpendpoint" << tmpendpoint << endl;
 				aioReadBlock();
-				//tmpcount++;
 			}
-			//tmpcount = max(tmpcount - 1, (int64_t)0);
-			//#pragma omp atomic
-			//countForIO+=tmpcount;
-			//cout << "End while " << curReadpos[m_termid] << " " << tmpendpoint << endl;
 			static const uint64_t block_size = Codec::block_size;
 			uint32_t endpoint = block
 				? ((uint32_t const*)m_block_endpoints)[block - 1]
 				: 0;
 			uint8_t const* block_data = m_blocks_data + endpoint;
-			//pprint(block_data);
 			m_cur_block_size =
 				((block + 1) * block_size <= size())
 				? block_size : (size() % block_size);
@@ -388,8 +345,8 @@ struct block_posting_list {
 			m_cur_block_max = block_max(block);
 			m_freqs_block_data =
 				m_codec.decode(block_data, m_docs_buf.data(),
-				m_cur_block_max - cur_base - (m_cur_block_size - 1),//sum_of_valueÊµ¼ÊÊÇ±íÊ¾Ã¿¸ö¿éÖĞgapÖµÖ®ºÍ(m_cur_block_max - cur_base¶ÔÓ¦gapÖ®ºÍ£¬m_cur_block_size - 1¶ÔÓ¦gapÒ²¼õÒ»)
-				m_cur_block_size);//cout<<"After"<<endl;
+				m_cur_block_max - cur_base - (m_cur_block_size - 1),
+				m_cur_block_size);
 
 			m_docs_buf[0] += cur_base;
 
@@ -397,7 +354,6 @@ struct block_posting_list {
 			m_pos_in_block = 0;
 			m_cur_docid = m_docs_buf[0];
 			m_freqs_decoded = false;
-			//cout << "decode over" << endl;
 		}
 		void pprint(uint8_t const* in)
 		{
@@ -414,11 +370,11 @@ struct block_posting_list {
 			decode_docs_block(0);
 		}
 		document_enumerator(uint8_t const* headdata, uint8_t const* listdata, uint64_t universe, uint32_t tid, int64_t lid)
-			: m_n(0) // just to silence warnings
-			, m_base(TightVariableByte::decode(headdata, &m_n, 1))//½âÂë¿éĞÅÏ¢£¬m_nÓ¦¸Ã²ÉÓÃTightVariableByteÑ¹Ëõ,Ñ¹ËõºóÖ¸ÕëÏòºóÒÆÒ»¸ö
+			: m_n(0) 
+			, m_base(TightVariableByte::decode(headdata, &m_n, 1))
 			, m_blocks(ceil((double)m_n / (double)Codec::block_size))
 			, m_block_maxs(m_base)
-			, m_block_endpoints(m_block_maxs + 4 * m_blocks)//Ã¿¸ö¿é4×Ö½Ú
+			, m_block_endpoints(m_block_maxs + 4 * m_blocks)
 			, m_blocks_data(listdata)
 			, m_universe(universe)
 			, m_termid(tid)
@@ -427,7 +383,7 @@ struct block_posting_list {
 			m_docs_buf.resize(Codec::block_size);
 			m_freqs_buf.resize(Codec::block_size);
 			m_threadid = omp_get_thread_num();
-			//reset();//cout<<"reset"<<endl;
+			
 		}
 		void inline next()
 		{
@@ -465,10 +421,8 @@ struct block_posting_list {
 			return m_n;
 		}
 		void  inline next_geq(uint64_t lower_bound)
-		{//cout<<lower_bound<<","<<m_cur_docid<<endl;
-			//assert(lower_bound >= m_cur_docid);
+		{
 			if (QS_UNLIKELY(lower_bound > m_cur_block_max)) {
-				// binary search seems to perform worse here
 				if (lower_bound > block_max(m_blocks - 1)) {
 					m_cur_docid = m_universe;
 					return;
@@ -500,30 +454,6 @@ struct block_posting_list {
 			}
 		}
 
-		/*uint64_t stats_freqs_size() const
-		{
-		SIMDNewPfor m_codec;
-		uint64_t bytes = 0;
-		uint8_t const* ptr = m_blocks_data;
-		static const uint64_t block_size = Codec::block_size;
-		std::vector<uint32_t> buf(block_size);
-		for (size_t b = 0; b < m_blocks; ++b) {
-		uint32_t cur_block_size =
-		((b + 1) * block_size <= size())
-		? block_size : (size() % block_size);
-
-		uint32_t cur_base = (b ? block_max(b - 1) : uint32_t(-1)) + 1;
-		uint8_t const* freq_ptr =
-		m_codec.decode(ptr, buf.data(),
-		block_max(b) - cur_base - (cur_block_size - 1),
-		cur_block_size);
-		ptr = m_codec.decode(freq_ptr, buf.data(),
-		uint32_t(-1), cur_block_size);
-		bytes += ptr - freq_ptr;
-		}
-
-		return bytes;
-		}*/
 
 	};
 
@@ -575,8 +505,7 @@ private:
 
 void read_Head_Length(string filename)
 {
-	//¶ÁÎÄ¼ş,¶Á³Éindex¸ñÊ½ Ğè²âÊÔ
-	FILE *lengthfile = fopen((filename + ".head-l").c_str(), "rb");//Í·²¿·Ö³¤¶È
+	FILE *lengthfile = fopen((filename + ".head-l").c_str(), "rb");
 	unsigned tmplength = 0;
 	int64_t prelength = 0;
 	fread(&num_docs, sizeof(unsigned), 1, lengthfile);
@@ -586,7 +515,7 @@ void read_Head_Length(string filename)
 		Head_offset.push_back(prelength);
 		prelength += tmplength;
 	}
-	Head_offset.push_back(prelength);//×îºóÒ»ÌõÍ·²¿Î²µØÖ·
+	Head_offset.push_back(prelength);
 	cout << "All we have " << Head_offset.size() - 1 << " heads" << endl;
 	fclose(lengthfile);
 }
@@ -602,18 +531,15 @@ void read_Head_Data(string filename)
 }
 void read_List_Length(string filename)
 {
-	//¶ÁÎÄ¼ş,¶Á³Éindex¸ñÊ½ Ğè²âÊÔ
-	FILE *lengthfile = fopen((filename + ".list-l").c_str(), "rb");//ÕûÁ´²¿·Ö³¤¶È
+	FILE *lengthfile = fopen((filename + ".list-l").c_str(), "rb");
 	unsigned tmplength = 0;
 	int64_t prelength = 0;
-	//fread(&num_docs, sizeof(unsigned), 1, lengthfile);
-	//cout << "num_docs=" << num_docs << endl;
 	while (fread(&tmplength, sizeof(unsigned), 1, lengthfile))
 	{
 		List_offset.push_back(prelength);
 		prelength += tmplength;
 	}
-	List_offset.push_back(prelength);//×îºóÒ»ÌõÁ´Î²µØÖ·
+	List_offset.push_back(prelength);
 	cout << "All we have " << List_offset.size() - 1 << " lists" << endl;
 	fclose(lengthfile);
 }
@@ -624,7 +550,7 @@ void read_BlockWand_Data(string filename)
 	fread(&length, sizeof(uint64_t), 1, file); if (length != 0)cout << "length1 wrong" << endl;
 	fread(&length, sizeof(uint64_t), 1, file); if (length != List_offset.size())cout << "length2 wrong" << endl;
 	Block_Start.resize(length);
-	fread(Block_Start.data(), sizeof(uint64_t), length, file);//¼ÆËãÃ¿Ò»¸öÁ´ÆğÊ¼Î»ÖÃ
+	fread(Block_Start.data(), sizeof(uint64_t), length, file);
 	fread(&length, sizeof(uint64_t), 1, file); cout << "All we have " << length << " blocks" << endl;
 	Block_Max_Term_Weight.resize(length);
 	fread(Block_Max_Term_Weight.data(), sizeof(float), length, file);
@@ -676,8 +602,6 @@ inline double get_time_usecs() {
 	return double(tv.tv_sec) * 1000000 + double(tv.tv_usec);
 }
 
-//template <bool with_freqs>
-
 
 void aioReadFirstBlock()
 {
@@ -687,9 +611,6 @@ void aioReadFirstBlock()
 	for (i = 0, cur = 0; i < Nodeforthread[threadid].size(); i++)//|Q|
 	{
 		unsigned lid = i;
-		//if (Nodeforthread[threadid][lid]->aiodata.listlength <= curReadpos[Nodeforthread[threadid][lid]->aiodata.termid]){ continue; }//ÓÉÓÚcache,¿ÉÄÜÕû¸ö²éÑ¯Êı¾İÈ«ÔÚcacheÀï
-		//cout<<"memoff="<<AIOreadinfo[lid].memoffset<<", readlength="<<AIOreadinfo[lid].readlength<<", readoff="<<AIOreadinfo[lid].readoffset<<endl;
-		//cout<<"term list off="<<List_offset[AIOreadinfo[lid].tid]<<", lenght="<<List_offset[AIOreadinfo[lid].tid+1]-List_offset[AIOreadinfo[lid].tid]<<endl;
 		io_prep_pread(&readrequest[threadid][cur], IndexFile, Nodeforthread[threadid][lid]->aiodata.list_data + Nodeforthread[threadid][lid]->aiodata.memoffset, READ_BLOCK, Nodeforthread[threadid][lid]->aiodata.readoffset);
 		listrequest[threadid][cur] = &readrequest[threadid][cur];
 		Nodeforthread[threadid][lid]->aiodata.memoffset += READ_BLOCK;
@@ -709,10 +630,10 @@ void aioReadFirstBlock()
 	}
 }
 
-struct and_query {//check OK
+struct and_query {
 	uint64_t operator()(term_id_vec terms, unsigned qid)const
 	{
-		int threadid = omp_get_thread_num();//cout<<threadid<<endl;
+		int threadid = omp_get_thread_num();
 		if (terms.empty()) return 0;
 		remove_duplicate_terms(terms);
 		typedef typename block_posting_list::document_enumerator enum_type;
@@ -730,11 +651,11 @@ struct and_query {//check OK
 #pragma omp atomic
 				usedFreq[term]++;
 				bool flag = 0;
-				node = global_LRUCache.Get(term, flag); //cout << "After get" << endl;
+				node = global_LRUCache.Get(term, flag); 
 				tmpNode.push_back(node);
-				if (flag == 0)//ÔÚLRUÖĞmissÁË
+				if (flag == 0)
 				{
-					Nodeforthread[threadid].push_back(node); //cout << "node " << node->aiodata.termid << " miss" << endl;
+					Nodeforthread[threadid].push_back(node); 
 				}
 			}
 		}
@@ -750,9 +671,7 @@ struct and_query {//check OK
 		for (unsigned i = 0; i < enums.size(); i++)
 		{
 			enums[i].reset();
-		}//cout << "CC" << endl;
-		//document_enumerator³õÊ¼»¯¼´½âÂëµÚÒ»¸ö¿é
-		// sort by increasing frequency
+		}
 		std::sort(enums.begin(), enums.end(),
 			[](enum_type const& lhs, enum_type const& rhs) {
 			return lhs.size() < rhs.size();
@@ -773,11 +692,6 @@ struct and_query {//check OK
 
 			if (i == enums.size()) {
 				results += 1;
-				//if (with_freqs) {
-				//for (i = 0; i < enums.size(); ++i) {
-				//do_not_optimize_away(enums[i].freq());
-				//}
-				//}
 				enums[0].next();
 				candidate = enums[0].docid();
 				i = 1;
@@ -793,7 +707,6 @@ term_freq_vec query_freqs(term_id_vec terms)
 {
 	term_freq_vec query_term_freqs;
 	std::sort(terms.begin(), terms.end());
-	// count query term frequencies
 	for (size_t i = 0; i < terms.size(); ++i) {
 		if (i == 0 || terms[i] != terms[i - 1]) {
 			query_term_freqs.emplace_back(terms[i], 1);
@@ -895,7 +808,7 @@ struct block_max_wand_query {
 				bool flag = 0;
 				node = global_LRUCache.Get(term.first, flag);
 				tmpNode.push_back(node);
-				if (flag == 0)//ÔÚLRUÖĞmissÁË
+				if (flag == 0)
 					Nodeforthread[threadid].push_back(node);
 			}
 		}
@@ -914,7 +827,6 @@ struct block_max_wand_query {
 
 		for (unsigned i = 0; i < enums.size(); i++)
 			enums[i].docs_enum.reset();
-		//cout << "reset" << endl;
 		std::vector<scored_enum *> ordered_enums;
 		ordered_enums.reserve(enums.size());
 		for (auto &en : enums) {
@@ -923,7 +835,6 @@ struct block_max_wand_query {
 
 
 		auto sort_enums = [&]() {
-			// sort enumerators by increasing docid
 			std::sort(ordered_enums.begin(), ordered_enums.end(),
 				[](scored_enum *lhs, scored_enum *rhs) {
 				return lhs->docs_enum.docid() < rhs->docs_enum.docid();
@@ -934,8 +845,6 @@ struct block_max_wand_query {
 		sort_enums();
 
 		while (true) {
-
-			// find pivot
 			float upper_bound = 0.f;
 			size_t pivot;
 			bool found_pivot = false;
@@ -955,8 +864,7 @@ struct block_max_wand_query {
 						break;
 				}
 			}
-
-			// no pivot found, we can stop the search
+			
 			if (!found_pivot) {
 				break;
 			}
@@ -975,7 +883,6 @@ struct block_max_wand_query {
 			if (m_topk.would_enter(block_upper_bound)) {
 
 
-				// check if pivot is a possible match
 				if (pivot_id == ordered_enums[0]->docs_enum.docid()) {
 					float score = 0;
 					float norm_len = m_wdata.norm_len(pivot_id);
@@ -1001,7 +908,6 @@ struct block_max_wand_query {
 					}
 
 					m_topk.insert(score);
-					// resort by docid
 					sort_enums();
 
 				}
@@ -1012,7 +918,6 @@ struct block_max_wand_query {
 						--next_list);
 						ordered_enums[next_list]->docs_enum.next_geq(pivot_id);
 
-					// bubble down the advanced list
 					for (size_t i = next_list + 1; i < ordered_enums.size(); ++i) {
 						if (ordered_enums[i]->docs_enum.docid() <=
 							ordered_enums[i - 1]->docs_enum.docid()) {
@@ -1041,7 +946,6 @@ struct block_max_wand_query {
 					}
 				}
 
-				// TO BE FIXED (change with num_docs())
 				uint64_t next_jump = uint64_t(-2);
 
 				if (pivot + 1 < ordered_enums.size()) {
@@ -1067,7 +971,6 @@ struct block_max_wand_query {
 
 				ordered_enums[next_list]->docs_enum.next_geq(next);
 
-				// bubble down the advanced list
 				for (size_t i = next_list + 1; i < ordered_enums.size(); ++i) {
 					if (ordered_enums[i]->docs_enum.docid() <
 						ordered_enums[i - 1]->docs_enum.docid()) {
@@ -1081,7 +984,6 @@ struct block_max_wand_query {
 		}
 
 		m_topk.finalize();
-		//m_topk.test_write_topK("BMW", qid);
 		return m_topk.topk().size();
 	}
 
@@ -1130,7 +1032,7 @@ struct wand_query {
 				bool flag = 0;
 				node = global_LRUCache.Get(term.first, flag);
 				tmpNode.push_back(node);
-				if (flag == 0)//ÔÚLRUÖĞmissÁË
+				if (flag == 0)
 					Nodeforthread[threadid].push_back(node);
 			}
 		}
@@ -1157,7 +1059,6 @@ struct wand_query {
 		}
 
 		auto sort_enums = [&]() {
-			// sort enumerators by increasing docid
 			std::sort(ordered_enums.begin(), ordered_enums.end(),
 				[](scored_enum* lhs, scored_enum* rhs) {
 				return lhs->docs_enum.docid() < rhs->docs_enum.docid();
@@ -1165,7 +1066,6 @@ struct wand_query {
 		};
 		sort_enums();
 		while (true) {
-			// find pivot
 			float upper_bound = 0;
 			size_t pivot;
 			bool found_pivot = false;
@@ -1179,13 +1079,11 @@ struct wand_query {
 					break;
 				}
 			}
-			// no pivot found, we can stop the search
 			if (!found_pivot) {
 				break;
 			}
 
-			// check if pivot is a possible match
-			uint64_t pivot_id = ordered_enums[pivot]->docs_enum.docid();//cout<<pivot_id<<endl;
+			uint64_t pivot_id = ordered_enums[pivot]->docs_enum.docid();
 			if (pivot_id == ordered_enums[0]->docs_enum.docid()) {
 				float score = 0;
 				float norm_len = m_wdata.norm_len(pivot_id);
@@ -1195,20 +1093,17 @@ struct wand_query {
 					}
 					score += en->q_weight * scorer_type::doc_term_weight
 						(en->docs_enum.freq(), norm_len);
-					en->docs_enum.next();//cout<<"IF part"<<endl;
+					en->docs_enum.next();
 				}
 
 				m_topk.insert(score);
-				// resort by docid
 				sort_enums();
 			}
 			else {
-				// no match, move farthest list up to the pivot
 				uint64_t next_list = pivot;
 				for (; ordered_enums[next_list]->docs_enum.docid() == pivot_id;
 					--next_list);
 					ordered_enums[next_list]->docs_enum.next_geq(pivot_id);
-				// bubble down the advanced list
 				for (size_t i = next_list + 1; i < ordered_enums.size(); ++i) {
 					if (ordered_enums[i]->docs_enum.docid() <
 						ordered_enums[i - 1]->docs_enum.docid()) {
@@ -1217,11 +1112,10 @@ struct wand_query {
 					else {
 						break;
 					}
-				}//cout<<"ELSE part"<<endl;
+				}
 			}
 		}
 		m_topk.finalize();
-		//m_topk.test_write_topK("WAND", qid);
 		return m_topk.topk().size();
 	}
 
@@ -1267,7 +1161,7 @@ struct maxscore_query {
 				bool flag = 0;
 				node = global_LRUCache.Get(term.first, flag);
 				tmpNode.push_back(node);
-				if (flag == 0)//ÔÚLRUÖĞmissÁË
+				if (flag == 0)
 					Nodeforthread[threadid].push_back(node);
 			}
 		}
@@ -1293,7 +1187,6 @@ struct maxscore_query {
 			ordered_enums.push_back(&en);
 		}
 
-		// sort enumerators by increasing maxscore
 		std::sort(ordered_enums.begin(), ordered_enums.end(),
 			[](scored_enum* lhs, scored_enum* rhs) {
 			return lhs->max_weight < rhs->max_weight;
@@ -1329,7 +1222,6 @@ struct maxscore_query {
 				}
 			}
 
-			// try to complete evaluation with non-essential lists
 			for (size_t i = non_essential_lists - 1; i + 1 > 0; --i) {
 				if (!m_topk.would_enter(score + upper_bounds[i])) {
 					break;
@@ -1342,7 +1234,6 @@ struct maxscore_query {
 			}
 
 			if (m_topk.insert(score)) {
-				// update non-essential lists
 				while (non_essential_lists < ordered_enums.size() &&
 					!m_topk.would_enter(upper_bounds[non_essential_lists])) {
 					non_essential_lists += 1;
@@ -1353,7 +1244,6 @@ struct maxscore_query {
 		}
 
 		m_topk.finalize();
-		//m_topk.test_write_topK("MAXSCORE", qid);
 		return m_topk.topk().size();
 	}
 
@@ -1398,7 +1288,7 @@ struct ranked_and_query {
 				bool flag = 0;
 				node = global_LRUCache.Get(term.first, flag);
 				tmpNode.push_back(node);
-				if (flag == 0)//ÔÚLRUÖĞmissÁË
+				if (flag == 0)
 					Nodeforthread[threadid].push_back(node);
 			}
 		}
@@ -1424,7 +1314,6 @@ struct ranked_and_query {
 			ordered_enums.push_back(&en);
 		}
 
-		// sort enumerators by increasing freq
 		std::sort(ordered_enums.begin(), ordered_enums.end(),
 			[](scored_enum* lhs, scored_enum* rhs) {
 			return lhs->docs_enum.size() < rhs->docs_enum.size();
@@ -1458,7 +1347,6 @@ struct ranked_and_query {
 		}
 
 		m_topk.finalize();
-		//m_topk.test_write_topK("RANKAND", qid);
 		return m_topk.topk().size();
 	}
 
@@ -1480,10 +1368,7 @@ void initial_data()
 	read_Head_Data(filename);
 	read_List_Length(filename);
 	read_BlockWand_Data(filename);
-
-  read_query("/home/lxy/NVM_code/Data/Reorder/ReorderTest/ClueWeb/"+ queryFilename); 
-	//read_query("/home/lxy/NVM_code/Data/Reorder/ClueWeb/Terabyte/ClueWeb" + queryFilename + ".txt");
-	//read_query("/home/lxy/NVM_code/Data/AOL/AOL_query_test_rand100.txt");
+  	read_query(queryFilename); 
 	initThreadStruct();
 }
 void print_statistics(vector<vector<double>>times, string querytype)
@@ -1517,8 +1402,7 @@ inline void do_not_optimize_away(T&& datum) {
 
 void receiveLastRequest(vector<unsigned>query)
 {
-	int threadid = omp_get_thread_num();//cout<<"In receive"<<threadid<<endl;
-	//ÊÕ»Ø×îºóÒ»ÂÖ·¢µÄ
+	int threadid = omp_get_thread_num();
 	while (io_getevents(ctx[threadid], curAIOLIST_SIZE[threadid], MAXREQUEST, events[threadid].data(), NULL) != curAIOLIST_SIZE[threadid])
 	{
 		;
@@ -1531,14 +1415,14 @@ void receiveLastRequest(vector<unsigned>query)
 	while (1)
 	{
 		int64_t cur = 0, i = 0;
-		for (i = 0, cur = 0; cur < MAXREQUEST&& Nodeforthread[threadid].size(); curReadID[threadid]++, i++)//°ÑÊ£ÏÂµÄËùÓĞÊı¾İ¶ÁÍê
+		for (i = 0, cur = 0; cur < MAXREQUEST&& Nodeforthread[threadid].size(); curReadID[threadid]++, i++)//æŠŠå‰©ä¸‹çš„æ‰€æœ‰æ•°æ®è¯»å®Œ
 		{
 			unsigned lid = curReadID[threadid] % Nodeforthread[threadid].size();
 			if (Nodeforthread[threadid][lid]->aiodata.listlength <= Nodeforthread[threadid][lid]->aiodata.curSendpos)
 			{
 				if (hasReadFinish())break;
 				else continue;
-			}//cout << "this tid=" << AIOreadinfo[lid].tid << endl;
+			}
 			io_prep_pread(&readrequest[threadid][cur], IndexFile, Nodeforthread[threadid][lid]->aiodata.list_data + Nodeforthread[threadid][lid]->aiodata.memoffset, READ_BLOCK, Nodeforthread[threadid][lid]->aiodata.readoffset);
 			listrequest[threadid][cur] = &readrequest[threadid][cur];
 			Nodeforthread[threadid][lid]->aiodata.memoffset += READ_BLOCK;
@@ -1552,16 +1436,14 @@ void receiveLastRequest(vector<unsigned>query)
 			cur++;
 		}
 		curAIOLIST_SIZE[threadid] = cur;
-		if (cur == 0)break;//ËµÃ÷µ±Ç°ÒÑÎŞÊı¾İĞèÒª¶ÁÈ¡
-		//·¢³ö×îºóÒ»ÅúÇëÇó
+		if (cur == 0)break;
 		if (io_submit(ctx[threadid], curAIOLIST_SIZE[threadid], listrequest[threadid].data()) != curAIOLIST_SIZE[threadid]) {
 			perror("io_submit"); cout << "submit 1 inreceiveLastRequest" << endl;
 		}
-		//ÊÕ»Ø×îºóÒ»ÅúÇëÇó
 		while (io_getevents(ctx[threadid], curAIOLIST_SIZE[threadid], MAXREQUEST, events[threadid].data(), NULL) != curAIOLIST_SIZE[threadid])
 		{
 			;
-		}//cout<<"In receive mid"<<endl;
+		}
 		for (unsigned i = 0; i < Nodeforthread[threadid].size(); i++)
 		{
 			curReadpos[Nodeforthread[threadid][i]->aiodata.termid] = Nodeforthread[threadid][i]->aiodata.curSendpos;
@@ -1569,14 +1451,12 @@ void receiveLastRequest(vector<unsigned>query)
 		}
 	}
 	remove_duplicate_terms(query);
-	//µ±Ç°ÎŞ²éÑ¯ÔÚÊ¹ÓÃ¸ÃÊı¾İ
 	for (int i = 0; i < query.size(); i++)
 	{
 #pragma omp atomic
 		usedFreq[query[i]]--;
 #pragma omp flush(usedFreq)
 	}
-	//cout<<"Out receive"<<endl;
 }
 
 struct ListScore
@@ -1624,11 +1504,8 @@ void warmUpLRUCache()
 template <typename QueryOperator>
 void perform_query(QueryOperator&& query_op, string querytype, unsigned qid)
 {
-	int threadid = omp_get_thread_num(); //cout << threadid << " " << qid << endl;
-	ofstream fout(indexFileName + querytype + "result" + to_string(threadid) + ".txt", ios::app);//ÊÊÓÃÓÚAND/OR²éÑ¯
-	//for (unsigned i = 0; i<queries.size(); i++)
-	//{
-	//cout <<"*********"  << endl;
+	int threadid = omp_get_thread_num(); 
+	ofstream fout(indexFileName + querytype + "result" + to_string(threadid) + ".txt", ios::app);
 #pragma omp atomic
 	curQueryid++;
 
@@ -1636,16 +1513,14 @@ void perform_query(QueryOperator&& query_op, string querytype, unsigned qid)
 	auto tick = get_time_usecs();
 	uint64_t result = query_op(query, qid);
 	do_not_optimize_away(result);
-	double elapsed = double(get_time_usecs() - tick);//²éÑ¯ÑÓ³Ù²»°üÀ¨¶Á×îºóÊı¾İ£¬µ«ÍÌÍÂ°üÀ¨
+	double elapsed = double(get_time_usecs() - tick);
 	receiveLastRequest(query);
 #pragma omp atomic
 	CPUAllFinish++;
 
 	query_Times[threadid].push_back(elapsed);
 	fout << result << endl;
-	//}
 	fout.close();
-	//cout << "Out" << endl;
 }
 
 int main(int argc, char *argv[])
@@ -1657,11 +1532,9 @@ int main(int argc, char *argv[])
 	queryFilename = argv[5];
 	threadCount += 2;
 	IndexFile = open((indexFileName + ".list").c_str(), O_RDONLY | O_DIRECT);
-	initial_data();//¶ÁË÷Òı¶Á²éÑ¯
+	initial_data();
 	cout << "initial data over" << endl;
 	cout << "User set threadCount=" << threadCount - 2 << endl;
-
-	//ÏÈÒ»¸öÏß³ÌÓÃ³¤Á´ÌîÂúLRUcache
 	warmUpLRUCache();
 	cout << "Warm Up over" << endl;
 
@@ -1680,7 +1553,6 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
-		//WAND²éÑ¯Âß¼­
 		quasi_succinct::wand_data<> wdata;
 		boost::iostreams::mapped_file_source md(indexFileName + ".wand");
 		succinct::mapper::map(wdata, md, succinct::mapper::map_flags::warmup);
