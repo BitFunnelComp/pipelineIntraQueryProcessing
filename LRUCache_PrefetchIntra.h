@@ -1,4 +1,3 @@
-//每个数据读适配大小的块
 #include <iostream>
 #include<stdint.h>
 #include <unordered_map>
@@ -8,37 +7,31 @@ using namespace std;
 struct SplitInfo
 {
 	unsigned split_blockid;
-	//int64_t split_offset;
-	//unsigned doc_count;
 	SplitInfo(){ split_blockid = 0; }
 };
 
-const unsigned constShardcount = 8;//总共shard个数
+const unsigned constShardcount = 8;
 vector<int64_t>List_offset;
-vector<vector<SplitInfo>>splitInfo(constShardcount);//shard,term
-vector<vector<unsigned>>blockEndpoint;//term,block
+vector<vector<SplitInfo>>splitInfo(constShardcount);
+vector<vector<unsigned>>blockEndpoint;
 struct AIOReadInfo
 {
-	int64_t readlength;//读长度（4K对齐）
-	int64_t readoffset;//读偏移（4K对齐）
-	//int64_t listoffset;//实际偏移
-	int64_t listlength;//实际长度
+	int64_t readlength;
+	int64_t readoffset;
+	//int64_t listoffset;
+	int64_t listlength;
 	int64_t offsetForenums;
 	int64_t memoffset;
 	int64_t curSendpos;
-	int64_t curReadpos;//相对于当前读的shard数据起始位置的pos
+	int64_t curReadpos;
 	uint8_t usedfreq;
-	uint8_t *list_data;//数据部分
+	uint8_t *list_data;
 	uint32_t termid;
 	uint32_t shardid;
 	uint32_t readblocksize;
 };
-//vector<vector<int64_t>>curReadpos(constShardcount);
-//vector<vector<uint8_t>>usedFreq(constShardcount);
-//vector<AIOReadInfo>AIOreadinfo;
 vector<int64_t>READ_BLOCK_options = { 4 * 1024, 8 * 1024, 16 * 1024, 32 * 1024, 64 * 1024 };
 const uint64_t DISK_BLOCK = 4096;
-//const int64_t READ_BLOCK = 64 * 1024;
 
 struct Node{
 	AIOReadInfo aiodata;
@@ -63,16 +56,16 @@ public:
 	uint64_t hit_count;
 	uint64_t miss_count;
 
-	void attach(Node *node);//插入到链表头
-	void detach(Node *node);//链表中删除节点
-	AIOReadInfo calAioreadinfo(unsigned shard, unsigned term);//计算Aio结构数据
+	void attach(Node *node);
+	void detach(Node *node);
+	AIOReadInfo calAioreadinfo(unsigned shard, unsigned term);
 
-	vector<unordered_map<unsigned, Node*>>hashmap_;//hash表<termid,链表节点>
-	Node*head_, *tail_;//头节点尾节点
-	int64_t sumBytes;//当前内存占用字节数
+	vector<unordered_map<unsigned, Node*>>hashmap_;
+	Node*head_, *tail_;
+	int64_t sumBytes;
 };
 
-LRUCache::LRUCache()//construct
+LRUCache::LRUCache()
 {
 	hashmap_.resize(constShardcount);
 	miss_size = 0; hit_size = 0;
@@ -86,7 +79,7 @@ LRUCache::LRUCache()//construct
 	sumBytes = 0;
 }
 
-LRUCache::~LRUCache()//destruct
+LRUCache::~LRUCache()
 {
 	delete head_;
 	delete tail_;
@@ -100,98 +93,84 @@ int64_t cal_properReadBlockSize(int64_t length)
 	}
 	return READ_BLOCK_options[READ_BLOCK_options.size() - 1];
 }
-AIOReadInfo LRUCache::calAioreadinfo(unsigned shard, unsigned term)//默认放进来的链长>0
+AIOReadInfo LRUCache::calAioreadinfo(unsigned shard, unsigned term)
 {
 	AIOReadInfo tmpaio;
 	tmpaio.termid = term;
-	tmpaio.shardid = shard;//cout << "LRU term=" << term << endl;
+	tmpaio.shardid = shard;
 	int64_t startpos = splitInfo[shard][term].split_blockid == 0 ? 0 : blockEndpoint[term][splitInfo[shard][term].split_blockid - 1];
 	int64_t listlength = shard == constShardcount - 1 ? List_offset[term + 1] - List_offset[term] - startpos : blockEndpoint[term][splitInfo[shard + 1][term].split_blockid] - startpos;
 	tmpaio.listlength = listlength;
 	tmpaio.memoffset = 0;
-	int64_t offset = startpos + List_offset[term]; //cout << "term " << term << " offset=" << offset << endl;
+	int64_t offset = startpos + List_offset[term]; 
 	tmpaio.readoffset = ((int64_t)(offset / DISK_BLOCK))*DISK_BLOCK;
 	tmpaio.offsetForenums = offset - tmpaio.readoffset;
 	tmpaio.readblocksize = cal_properReadBlockSize(tmpaio.listlength);
-	int64_t readlength = ((int64_t)(ceil((double)(listlength + tmpaio.offsetForenums) / tmpaio.readblocksize)))*tmpaio.readblocksize;//4K对齐
+	int64_t readlength = ((int64_t)(ceil((double)(listlength + tmpaio.offsetForenums) / tmpaio.readblocksize)))*tmpaio.readblocksize;//4K瀵归綈
 	tmpaio.readlength = readlength;
 	tmpaio.curSendpos = -tmpaio.offsetForenums;
-	tmpaio.usedfreq = 0;//usedFreq怎么处理？
+	tmpaio.usedfreq = 0;
 	tmpaio.curReadpos = -tmpaio.offsetForenums;
-	//#pragma omp flush(curReadpos)
-	//posix_memalign((void**)&tmpaio.list_data, DISK_BLOCK, readlength);
-	miss_size += tmpaio.listlength;////////////////tmpaio.readlength
-
-	//if (shard == 4 && term == 31726210)cout << "listlength=" << tmpaio.listlength << " curReadpos=" << tmpaio.curReadpos << endl;
+	miss_size += tmpaio.listlength;
 	return tmpaio;
 }
 
-Node* LRUCache::Put(unsigned shard, unsigned key)//压入的链一定不在cache中
+Node* LRUCache::Put(unsigned shard, unsigned key)
 {
-	//cout << "In put" << endl;
-	AIOReadInfo tmpaio = calAioreadinfo(shard, key); //cout << "put 0" << endl;
-	Node *node;
+	AIOReadInfo tmpaio = calAioreadinfo(shard, key); 
 	if (tmpaio.readlength> CACHE_SIZE)
 	{
 		cout << tmpaio.readlength << " " << CACHE_SIZE << " listlength=" << List_offset[key + 1] - List_offset[key] << endl;
 		cout << "That block overflow!!" << endl;
 		return NULL;
-	}//cout << "put1" << endl;
+	}
 	node = tail_->prev;
-	while (sumBytes + tmpaio.readlength>CACHE_SIZE)//删到内存有一定空间装入当前数据
+	while (sumBytes + tmpaio.readlength>CACHE_SIZE)
 	{
-		if (node == head_){ node = tail_->prev; }//所有链都不可释放，重新一轮查找
-		//如果有链正在使用(CPU用或者IO在读)，换下一个节点
-		//if (usedFreq[node->aiodata.termid] > 0 || curReadpos[node->aiodata.termid] < node->aiodata.listlength){ node = node->prev; continue; }
+		if (node == head_){ node = tail_->prev; }
 		if (node->aiodata.usedfreq > 0){ node = node->prev; continue; }
-		detach(node);//cout<<"AA"<<endl;
-		free(node->aiodata.list_data);//////////////////////////////////////////
-		node->aiodata.curReadpos = -node->aiodata.offsetForenums; //if (node->aiodata.curReadpos == 64173)cout << "Put" << endl;
-		//cout << "*****We will delete term=" << node->aiodata.termid << " shard=" << node->aiodata.shardid << endl;
+		detach(node);
+		free(node->aiodata.list_data);
+		node->aiodata.curReadpos = -node->aiodata.offsetForenums;
 		sumBytes -= node->aiodata.readlength;
-		hashmap_[node->aiodata.shardid].erase(node->aiodata.termid);////节点删除
-		//cout<<"DD"<<endl;
+		hashmap_[node->aiodata.shardid].erase(node->aiodata.termid);
 		Node *tmp = node->prev;
 		delete node;
-		node = tmp;//cout<<"EE"<<endl;
+		node = tmp;
 	}
-	//cout << "put2" << endl;
 	node = new Node();
 	posix_memalign((void**)&tmpaio.list_data, DISK_BLOCK, tmpaio.readlength);
 	node->aiodata = tmpaio;
 	sumBytes += tmpaio.readlength;
-	attach(node); //cout << "put3" << endl;
+	attach(node); 
 	hashmap_[shard][key] = node;
-	//cout << "put 4" << endl;
 	return node;
 }
 
 Node* LRUCache::Put_Prefetch(unsigned shard, unsigned key)
 {
-	AIOReadInfo tmpaio = calAioreadinfo(shard, key); //cout << "put 0" << endl;
+	AIOReadInfo tmpaio = calAioreadinfo(shard, key); 
 	Node *node;
 	if (tmpaio.readlength> CACHE_SIZE)
 	{
 		cout << "That block overflow!!" << endl;
 		return NULL;
-	}//cout << "put1" << endl;
+	}
 	node = tail_->prev;
-	while (sumBytes + tmpaio.readlength>CACHE_SIZE&&node != head_)//删到内存有一定空间装入当前数据,或所有链都不可释放
+	while (sumBytes + tmpaio.readlength>CACHE_SIZE&&node != head_)
 	{
-		//如果有链正在使用(CPU用或者IO在读)，换下一个节点
-		//if (usedFreq[node->aiodata.termid] > 0 || curReadpos[node->aiodata.termid] < node->aiodata.listlength){ node = node->prev; continue; }
 		if (node->aiodata.usedfreq > 0){ node = node->prev; continue; }
 		detach(node);
-		free(node->aiodata.list_data);//////////////////////////////////////////
-		node->aiodata.curReadpos = -node->aiodata.offsetForenums; //if (node->aiodata.curReadpos == 64173)cout << "Put" << endl;
+		free(node->aiodata.list_data);
+		node->aiodata.curReadpos = -node->aiodata.offsetForenums; 
 		sumBytes -= node->aiodata.readlength;
-		hashmap_[node->aiodata.shardid].erase(node->aiodata.termid);////节点删除
+		hashmap_[node->aiodata.shardid].erase(node->aiodata.termid);
 
 		Node *tmp = node->prev;
 		delete node;
 		node = tmp;
 	}
-	if (node == head_)//未成功插入数据
+	if (node == head_)
 	{
 		return NULL;
 	}
@@ -200,46 +179,42 @@ Node* LRUCache::Put_Prefetch(unsigned shard, unsigned key)
 	posix_memalign((void**)&tmpaio.list_data, DISK_BLOCK, tmpaio.readlength);
 	node->aiodata = tmpaio;
 	sumBytes += tmpaio.readlength;
-	attach(node); //cout << "put3" << endl;
+	attach(node); 
 	hashmap_[shard][key] = node;
-	//cout << "put 4" << endl;
 	return node;
 }
-Node* LRUCache::Get(unsigned shard, unsigned key, bool &flag)//flag=false ——miss的数据由当前线程负责读完
-{//cout<<"In get"<<endl;
+Node* LRUCache::Get(unsigned shard, unsigned key, bool &flag)
+{
 	Node *node;
 	unordered_map<unsigned, Node* >::iterator it = hashmap_[shard].find(key);
-	if (it != hashmap_[shard].end())//cache hit
+	if (it != hashmap_[shard].end())
 	{
 		node = it->second;
 		flag = true;
 		hit_count++;
 		detach(node);
 		attach(node);
-		//node = NULL;
 	}
-	else//cache miss
+	else
 	{
 		flag = false;
 		miss_count++;
 		node = Put(shard, key);
 	}
 	return node;
-	//cout << "get over" << endl;
 }
-Node* LRUCache::Get_Prefetch(unsigned shard, unsigned key, bool &flag)//在预取中hit会放到链表头
+Node* LRUCache::Get_Prefetch(unsigned shard, unsigned key, bool &flag)
 {
 	Node *node;
 	unordered_map<unsigned, Node* >::iterator it = hashmap_[shard].find(key);
-	if (it != hashmap_[shard].end())//cache hit
+	if (it != hashmap_[shard].end())
 	{
 		node = it->second;
 		flag = true;
-		//hit_count++;
 		detach(node);
 		attach(node);
 	}
-	else//cache miss
+	else
 	{
 		flag = false;
 		miss_count++;
@@ -269,7 +244,6 @@ void LRUCache::print(unsigned shard)
 	int64_t mysumsize = 0;
 	for (iter = hashmap_[shard].begin(); iter != hashmap_[shard].end(); iter++)
 	{
-		//cout << iter->first << " ";
 		mysumsize += iter->second->aiodata.listlength;
 	}
 	cout << "sumsize=" << mysumsize << endl;
