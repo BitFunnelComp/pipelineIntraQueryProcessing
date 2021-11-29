@@ -195,7 +195,7 @@ bool cmpFreq(const pair<unsigned, unsigned>&a, const pair<unsigned, unsigned>&b)
 }
 void detectIOWork()
 {
-	while (curQID == -1)//(curQID < queries.size())
+	while (curQID == -1)
 	{
 #pragma omp flush(curQID)
 		usleep(1000);
