@@ -43,7 +43,7 @@ namespace quasi_succinct {
                 succinct::bit_vector_builder bvb;
                 compact_elias_fano::write(bvb, m_endpoints.begin(),
                                           sq.m_lists.size(), sq.m_size,
-                                          m_params); // XXX
+                                          m_params); 
                 succinct::bit_vector(&bvb).swap(sq.m_endpoints);
             }
 
