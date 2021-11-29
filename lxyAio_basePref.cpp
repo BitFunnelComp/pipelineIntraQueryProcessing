@@ -124,7 +124,7 @@ void aioReadBlock()
 #pragma omp flush(curReadpos)
 	}
 	int64_t cur = 0, i = 0;
-	for (i = 0, cur = 0; cur < AIOLIST_SIZE&&Nodeforthread[threadid].size(); curReadID[threadid]++, i++)//最多发AIOLIST_SIZE个请求,若有的链读完则发送未读完链的请求
+	for (i = 0, cur = 0; cur < AIOLIST_SIZE&&Nodeforthread[threadid].size(); curReadID[threadid]++, i++)
 	{
 		unsigned lid = curReadID[threadid] % Nodeforthread[threadid].size();
 		if (Nodeforthread[threadid][lid]->aiodata.listlength <= Nodeforthread[threadid][lid]->aiodata.curSendpos)
@@ -263,7 +263,7 @@ void detectIOWork()
 			if (prefetchList[i] == NULL)
 			{
 #pragma omp critical(VisitsLRU)
-				{//cout<<"here"<<endl;
+				{
 					bool flag = 0;
 					Node *node = global_LRUCache.Get_Prefetch(querytermset[curpos].first, flag);
 					if (flag == 0 && node != NULL)
@@ -328,7 +328,7 @@ struct block_posting_list {
 				tmpendpoint = ((uint32_t const*)m_block_endpoints)[block];
 			}
 #pragma omp flush(curReadpos)
-			while (curReadpos[m_termid] < tmpendpoint)//轮询当前数据是否读到需要部分
+			while (curReadpos[m_termid] < tmpendpoint)
 			{
 #pragma omp flush(curReadpos)
 				aioReadBlock();
@@ -608,7 +608,7 @@ void aioReadFirstBlock()
 	int threadid = omp_get_thread_num();
 	curReadID[threadid] = 0;
 	unsigned cur = 0, i = 0;
-	for (i = 0, cur = 0; i < Nodeforthread[threadid].size(); i++)//|Q|
+	for (i = 0, cur = 0; i < Nodeforthread[threadid].size(); i++)
 	{
 		unsigned lid = i;
 		io_prep_pread(&readrequest[threadid][cur], IndexFile, Nodeforthread[threadid][lid]->aiodata.list_data + Nodeforthread[threadid][lid]->aiodata.memoffset, READ_BLOCK, Nodeforthread[threadid][lid]->aiodata.readoffset);
