@@ -28,8 +28,6 @@ namespace quasi_succinct {
             void add_sequence(Iterator begin, uint64_t last_element, uint64_t n)
             {
                 if (!n) throw std::invalid_argument("Sequence must be nonempty");
-
-                // make_shared does not seem to work
                 std::shared_ptr<sequence_adder<Iterator>>
                     ptr(new sequence_adder<Iterator>(*this, begin, last_element, n));
                 m_queue.add_job(ptr, n);
@@ -58,8 +56,6 @@ namespace quasi_succinct {
 
                 virtual void prepare()
                 {
-                    // store approximation of the universe as smallest power of two
-                    // that can represent last_element
                     uint64_t universe_bits = ceil_log2(last_element);
                     write_gamma(bits, universe_bits);
                     write_gamma_nonzero(bits, n);
