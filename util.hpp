@@ -31,10 +31,6 @@ namespace quasi_succinct {
     inline std::ostream& logger()
     {
         time_t t = std::time(nullptr);
-        // XXX(ot): put_time unsupported in g++ 4.7
-        // return std::cerr
-        //     <<  std::put_time(std::localtime(&t), "%F %T")
-        //     << ": ";
         std::locale loc;
         const std::time_put<char>& tp =
             std::use_facet<std::time_put<char>>(loc);
@@ -56,7 +52,6 @@ namespace quasi_succinct {
         return double(ru.ru_utime.tv_sec) * 1000000 + double(ru.ru_utime.tv_usec);
     }
 
-    // stolen from folly
     template <class T>
     inline void do_not_optimize_away(T&& datum) {
         asm volatile("" : "+r" (datum));
@@ -71,11 +66,6 @@ namespace quasi_succinct {
         enum { value = sizeof(test<T>(0)) == sizeof(char) };
     };
 
-    // A more powerful version of boost::function_input_iterator that also works
-    // with lambdas.
-    //
-    // Important: the functors must be stateless, otherwise the behavior is
-    // undefined.
     template <typename State, typename AdvanceFunctor, typename ValueFunctor>
     class function_iterator
         : public std::iterator<std::forward_iterator_tag,
@@ -96,13 +86,10 @@ namespace quasi_succinct {
             swap(lhs.m_state, rhs.m_state);
         }
 
-        // XXX why isn't this inherited from std::iterator?
         typedef typename std::result_of<ValueFunctor(State)>::type value_type;
 
         value_type operator*() const
         {
-            // XXX I do not know if this trick is legal for stateless lambdas,
-            // but it seems to work on GCC and Clang
             return (*static_cast<ValueFunctor*>(nullptr))(m_state);
         }
 
@@ -176,7 +163,6 @@ namespace quasi_succinct {
             std::cout << v;
         }
 
-        // XXX properly escape strings
         void emit(const char* s) const
         {
             std::cout << '"' << s << '"';
