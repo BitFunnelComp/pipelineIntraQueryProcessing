@@ -49,7 +49,6 @@ namespace quasi_succinct {
                 enums.push_back(index[term]);
             }
 
-            // sort by increasing frequency
             std::sort(enums.begin(), enums.end(),
                       [](enum_type const& lhs, enum_type const& rhs) {
                           return lhs.size() < rhs.size();
@@ -137,7 +136,6 @@ namespace quasi_succinct {
     {
         term_freq_vec query_term_freqs;
         std::sort(terms.begin(), terms.end());
-        // count query term frequencies
         for (size_t i = 0; i < terms.size(); ++i) {
             if (i == 0 || terms[i] != terms[i - 1]) {
                 query_term_freqs.emplace_back(terms[i], 1);
@@ -240,7 +238,6 @@ namespace quasi_succinct {
             }
 
             auto sort_enums = [&]() {
-                // sort enumerators by increasing docid
                 std::sort(ordered_enums.begin(), ordered_enums.end(),
                           [](scored_enum* lhs, scored_enum* rhs) {
                               return lhs->docs_enum.docid() < rhs->docs_enum.docid();
@@ -249,7 +246,6 @@ namespace quasi_succinct {
 
             sort_enums();
             while (true) {
-                // find pivot
                 float upper_bound = 0;
                 size_t pivot;
                 bool found_pivot = false;
@@ -264,12 +260,10 @@ namespace quasi_succinct {
                     }
                 }
 
-                // no pivot found, we can stop the search
                 if (!found_pivot) {
                     break;
                 }
 
-                // check if pivot is a possible match
                 uint64_t pivot_id = ordered_enums[pivot]->docs_enum.docid();
                 if (pivot_id == ordered_enums[0]->docs_enum.docid()) {
                     float score = 0;
@@ -284,15 +278,12 @@ namespace quasi_succinct {
                     }
 
                     m_topk.insert(score);
-                    // resort by docid
                     sort_enums();
                 } else {
-                    // no match, move farthest list up to the pivot
                     uint64_t next_list = pivot;
                     for (; ordered_enums[next_list]->docs_enum.docid() == pivot_id;
                          --next_list);
                     ordered_enums[next_list]->docs_enum.next_geq(pivot_id);
-                    // bubble down the advanced list
                     for (size_t i = next_list + 1; i < ordered_enums.size(); ++i) {
                         if (ordered_enums[i]->docs_enum.docid() <
                             ordered_enums[i - 1]->docs_enum.docid()) {
@@ -352,8 +343,7 @@ namespace quasi_succinct {
                     (term.second, list.size(), num_docs);
                 enums.push_back(scored_enum {std::move(list), q_weight});
             }
-
-            // sort by increasing frequency
+            
             std::sort(enums.begin(), enums.end(),
                       [](scored_enum const& lhs, scored_enum const& rhs) {
                           return lhs.docs_enum.size() < rhs.docs_enum.size();
@@ -517,7 +507,6 @@ namespace quasi_succinct {
                 ordered_enums.push_back(&en);
             }
 
-            // sort enumerators by increasing maxscore
             std::sort(ordered_enums.begin(), ordered_enums.end(),
                       [](scored_enum* lhs, scored_enum* rhs) {
                           return lhs->max_weight < rhs->max_weight;
@@ -553,7 +542,6 @@ namespace quasi_succinct {
                     }
                 }
 
-                // try to complete evaluation with non-essential lists
                 for (size_t i = non_essential_lists - 1; i + 1 > 0; --i) {
                     if (!m_topk.would_enter(score + upper_bounds[i])) {
                         break;
@@ -566,7 +554,6 @@ namespace quasi_succinct {
                 }
 
                 if (m_topk.insert(score)) {
-                    // update non-essential lists
                     while (non_essential_lists < ordered_enums.size() &&
                            !m_topk.would_enter(upper_bounds[non_essential_lists])) {
                         non_essential_lists += 1;
