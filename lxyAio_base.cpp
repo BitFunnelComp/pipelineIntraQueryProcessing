@@ -460,7 +460,7 @@ void aioReadFirstBlock()
 	int threadid = omp_get_thread_num();
 	curReadID[threadid] = 0;
 	unsigned cur = 0, i = 0;
-	for (i = 0, cur = 0; i < Nodeforthread[threadid].size(); i++)//|Q|
+	for (i = 0, cur = 0; i < Nodeforthread[threadid].size(); i++)
 	{
 		unsigned lid = i;
 		io_prep_pread(&readrequest[threadid][cur], IndexFile, Nodeforthread[threadid][lid]->aiodata.list_data + Nodeforthread[threadid][lid]->aiodata.memoffset, READ_BLOCK, Nodeforthread[threadid][lid]->aiodata.readoffset);
