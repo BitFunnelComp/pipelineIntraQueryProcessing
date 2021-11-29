@@ -1,4 +1,3 @@
-//Greedy reordering for batch queries.
 #include<iostream>
 #include<vector>
 #include<stdint.h>
@@ -200,7 +199,7 @@ void batchProcess()
 			queryinfo[i].qlength = cal_qlength(i);
 		}
 		greedyReorder();
-		writeQuery("QueryGreedy.txt");
+		writeQuery("");
 	}
 }
 int main(int argc, char *argv[])
