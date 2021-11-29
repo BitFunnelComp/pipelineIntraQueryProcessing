@@ -100,7 +100,7 @@ AIOReadInfo LRUCache::calAioreadinfo(unsigned shard, unsigned term)
 	tmpaio.readoffset = ((int64_t)(offset / DISK_BLOCK))*DISK_BLOCK;
 	tmpaio.offsetForenums = offset - tmpaio.readoffset;
 	tmpaio.readblocksize = cal_properReadBlockSize(tmpaio.listlength);
-	int64_t readlength = ((int64_t)(ceil((double)(listlength + tmpaio.offsetForenums) / tmpaio.readblocksize)))*tmpaio.readblocksize;//4K对齐
+	int64_t readlength = ((int64_t)(ceil((double)(listlength + tmpaio.offsetForenums) / tmpaio.readblocksize)))*tmpaio.readblocksize;
 	tmpaio.readlength = readlength;
 	tmpaio.curSendpos = -tmpaio.offsetForenums;
 	tmpaio.usedfreq = 0;
