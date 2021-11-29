@@ -1,4 +1,3 @@
-//DRAM_base 根据shardScore分数阈值决定先执行哪个任务(统计块内最大分数) 带有topK分数的
 #include<iostream>
 #include<vector>
 #include<stdint.h>
@@ -43,8 +42,6 @@ struct Task
 struct SplitInfo
 {
 	unsigned split_blockid;
-	//int64_t split_offset;
-	//unsigned doc_count;
 	SplitInfo(){ split_blockid = 0; }
 };
 
@@ -56,7 +53,6 @@ struct topk_queue {
 	topk_queue()
 	: m_k(topK)
 	{
-		//omp_init_lock(&lock);
 	}
 	void updateScore()
 	{
@@ -103,17 +99,16 @@ struct topk_queue {
 		m_q.clear();
 		qid = queryid;
 	}
-	//private:
 	uint64_t m_k;
 	std::vector<float> m_q;
 	unsigned qid;
 };
 
 const unsigned constShardcount = 8;
-vector<vector<SplitInfo>>splitInfo(constShardcount);//shard,term
-vector<unsigned>SharddocIDThresh(constShardcount + 1);//每组docID的范围
-queue<Task>queryTasks;//查询任务队列
-vector<QueryInfo>queryInfo;//查询时间分配线程数等信息
+vector<vector<SplitInfo>>splitInfo(constShardcount);
+vector<unsigned>SharddocIDThresh(constShardcount + 1);
+queue<Task>queryTasks;
+vector<QueryInfo>queryInfo;
 vector<topk_queue>scoreQueue;
 vector<unsigned>assignedThreads;
 
@@ -136,8 +131,8 @@ vector<term_id_vec> queries;
 unsigned num_docs = 0;
 unsigned curQID = 0;
 
-vector<vector<pair<unsigned, float>>>ShardScore;//query-(shardid,score)
-vector<vector<float>>TermTopkThreshShard;//term,shard
+vector<vector<pair<unsigned, float>>>ShardScore;
+vector<vector<float>>TermTopkThreshShard;
 
 struct block_posting_list {
 
@@ -210,13 +205,13 @@ struct block_posting_list {
 
 		unsigned m_shardid;
 		unsigned m_termid;
-		unsigned m_baseblockid;//起始块id
+		unsigned m_baseblockid;
 
 		uint32_t block_max(uint32_t block) const
 		{
 			return ((uint32_t const*)m_block_maxs)[block];
 		}
-		void QS_NOINLINE decode_docs_block(uint64_t block)//block是实际块号
+		void QS_NOINLINE decode_docs_block(uint64_t block)
 		{
 
 			static const uint64_t block_size = Codec::block_size;
@@ -228,7 +223,7 @@ struct block_posting_list {
 				? ((uint32_t const*)m_block_endpoints)[block - 1]
 				: 0;
 
-			uint8_t const* block_data = m_blocks_data + endpoint - base_endpoint;//
+			uint8_t const* block_data = m_blocks_data + endpoint - base_endpoint;
 
 			m_cur_block_size =
 				((block + 1) * block_size <= size())
@@ -260,8 +255,7 @@ struct block_posting_list {
 		void reset()
 		{
 			decode_docs_block(0 + m_baseblockid);
-			next_geq(SharddocIDThresh[m_shardid]);//提前跳到对应数据块
-			//cout<<SharddocIDThresh[m_shardid]<<" "<<docid()<<endl;
+			next_geq(SharddocIDThresh[m_shardid]);
 		}
 		document_enumerator(uint8_t const* headdata, uint8_t const* listdata, unsigned universe, unsigned shardid, unsigned termid)
 			: m_n(0)
@@ -269,7 +263,6 @@ struct block_posting_list {
 			, m_blocks(ceil((double)m_n / (double)Codec::block_size))
 			, m_block_maxs(m_base)
 			, m_block_endpoints(m_block_maxs + 4 * m_blocks)
-			//, m_blocks_data(listdata)
 			, m_universe(universe)
 			, m_shardid(shardid)
 			, m_termid(termid)
@@ -299,8 +292,8 @@ struct block_posting_list {
 			}
 		}
 		uint64_t docid() const
-		{//cout<<m_cur_docid<<" "<< SharddocIDThresh[m_shardid]<<endl;
-			return m_cur_docid; //>= SharddocIDThresh[m_shardid + 1] ? m_universe : m_cur_docid;
+		{
+			return m_cur_docid;
 		}
 		uint64_t inline freq()
 		{
@@ -318,7 +311,6 @@ struct block_posting_list {
 		uint64_t size() const
 		{
 			return m_n;
-			//return splitInfo[m_shardid][m_termid].doc_count;
 		}
 		void  inline next_geq(uint64_t lower_bound)
 		{
@@ -342,18 +334,6 @@ struct block_posting_list {
 			}
 			m_cur_docid = m_cur_docid >= SharddocIDThresh[m_shardid + 1] ? m_universe : m_cur_docid;
 		}
-
-		/*void  inline move(uint64_t pos)
-		{
-		assert(pos >= position());
-		uint64_t block = pos / Codec::block_size;
-		if (QS_UNLIKELY(block != m_cur_block)) {
-		decode_docs_block(block);
-		}
-		while (position() < pos) {
-		m_cur_docid += m_docs_buf[++m_pos_in_block] + 1;
-		}
-		}*/
 
 	};
 
@@ -479,16 +459,12 @@ void read_SplitInfo(string filename)
 		{
 			fread(&tmps.split_blockid, sizeof(unsigned), 1, file);
 			fread(&tmpoffset, sizeof(int64_t), 1, file);
-			//fread(&tmps.split_offset, sizeof(int64_t), 1, file);
-			//fread(&tmps.doc_count, sizeof(int64_t), 1, file);
 			splitInfo[i][j] = tmps;
 		}
 	}
 	fclose(file);
 	cout << "read split over" << endl;
 	unsigned docIDinterval = ceil((double)num_docs / constShardcount);
-	//for (unsigned i = 0; i <= constShardcount; i++)
-	//	SharddocIDThresh[i] = i*docIDinterval;
 
   SharddocIDThresh[0] = 0; SharddocIDThresh[1] = 5741824; SharddocIDThresh[2] = 9980428; SharddocIDThresh[3] = 15681198; SharddocIDThresh[4] = 21977502;
 	SharddocIDThresh[5] = 28980684; SharddocIDThresh[6] = 36028534; SharddocIDThresh[7] = 43169356; SharddocIDThresh[8] = 50220423;
@@ -514,31 +490,10 @@ void read_query(string filename)
 void read_AssignedThreads()
 {
 	assignedThreads.resize(queries.size());
-	/*string filename = "/home/lxy/NVM_code/Data/Reorder/IntraQuery/OptimalPall/NoReorder/NonReorder/Gov2QueryNonReordT.txt";
-	ifstream fin(filename);
-	for (unsigned i = 0; i < queries.size(); i++)
-		fin >> assignedThreads[i];
-	fin.close();*/
 
 	
 	vector<int>transform = {1,2,4,8};
-	//optimal的方案
-	/*string filename = "/home/lxy/NVM_code/Data/Reorder/IntraQuery/OptimalPall/NoReorder/NonReorder/Gov2FeatureTest.txt";
-	ifstream fin(filename);
-	string str = "";
-	for (unsigned i = 0; i < queries.size(); i++)
-	{
-		getline(fin, str);
-		int pos = str.find_last_of(",");
-		string field = str.substr(pos + 1);
-	
-		int threadsnum = atoi(field.c_str());
-		assignedThreads[i] = transform[threadsnum];
-	}
-	fin.close();*/
-
-	//预测的方案
-	string filename = "/home/lxy/NVM_code/Data/Reorder/IntraQuery/OptimalPall/NoReorder/NonReorder/PredictTest.txt";
+	string filename = "";
 	ifstream fin(filename);
 	int threadsnum;
 	for (unsigned i = 0; i < queries.size(); i++)
@@ -556,7 +511,7 @@ void read_AssignedThreads()
 void read_ShardScore()
 {
 	ShardScore.resize(queries.size());
-	string filename = "/home/lxy/NVM_code/Data/Reorder/IntraQuery/ScoreStatistic/ScoreGov2BMW.txt";
+	string filename = "";
 	ifstream fin(filename);
 	for (unsigned i = 0; i < queries.size(); i++)
 	{
@@ -604,8 +559,6 @@ struct and_query {
 		typedef typename block_posting_list::document_enumerator enum_type;
 		std::vector<enum_type> enums;
 		enums.reserve(terms.size());
-
-		//unsigned startdocID = SharddocIDThresh[shardid], enddocID = SharddocIDThresh[shardid+1];
 		for (auto term : terms)
 		{
 			enum_type tmplist(Head_Data.data() + Head_offset[term], List_Data.data() + List_offset[term], num_docs, shardid, term);
@@ -677,7 +630,7 @@ void read_TermtopKThresh(string filename)
 		{
 			score = max(score, termTopkThresh[t.first] * t.second);
 		}
-		globalScoreThresh[i] = max(0.0, score - 0.0001);//为了保证凑满topk
+		globalScoreThresh[i] = max(0.0, score - 0.0001);
 	}
 }
 void read_TermTopkThreshShard(string filename)
@@ -689,14 +642,11 @@ void read_TermTopkThreshShard(string filename)
 	while (getline(fin, str))
 	{
 		stringstream ss(str);
-		//cout << str << endl;
 		string field = "";
 		while (getline(ss, field, '\t'))
 		{
-			//cout << field << " ";
 			TermTopkThreshShard[linecount].push_back(atof(field.c_str()));
 		}
-		//cout << endl;
 		linecount++;
 	}
 	fin.close();
@@ -738,7 +688,6 @@ struct block_max_wand_query {
 
 
 		auto sort_enums = [&]() {
-			// sort enumerators by increasing docid
 			std::sort(ordered_enums.begin(), ordered_enums.end(),
 				[](scored_enum *lhs, scored_enum *rhs) {
 				return lhs->docs_enum.docid() < rhs->docs_enum.docid();
@@ -749,8 +698,6 @@ struct block_max_wand_query {
 		sort_enums();
 
 		while (true) {
-
-			// find pivot
 			float upper_bound = 0.f;
 			size_t pivot;
 			bool found_pivot = false;
@@ -770,8 +717,6 @@ struct block_max_wand_query {
 						break;
 				}
 			}
-
-			// no pivot found, we can stop the search
 			if (!found_pivot) {
 				break;
 			}
@@ -789,8 +734,6 @@ struct block_max_wand_query {
 
 			if (scoreQueue[threadid].would_enter(block_upper_bound)) {
 
-
-				// check if pivot is a possible match
 				if (pivot_id == ordered_enums[0]->docs_enum.docid()) {
 					float score = 0;
 					float norm_len = m_wdata.norm_len(pivot_id);
@@ -816,7 +759,6 @@ struct block_max_wand_query {
 					}
 
 					scoreQueue[threadid].insert(score);
-					// resort by docid
 					sort_enums();
 
 				}
@@ -827,7 +769,6 @@ struct block_max_wand_query {
 						--next_list);
 						ordered_enums[next_list]->docs_enum.next_geq(pivot_id);
 
-					// bubble down the advanced list
 					for (size_t i = next_list + 1; i < ordered_enums.size(); ++i) {
 						if (ordered_enums[i]->docs_enum.docid() <=
 							ordered_enums[i - 1]->docs_enum.docid()) {
@@ -856,7 +797,6 @@ struct block_max_wand_query {
 					}
 				}
 
-				// TO BE FIXED (change with num_docs())
 				uint64_t next_jump = uint64_t(-2);
 
 				if (pivot + 1 < ordered_enums.size()) {
@@ -882,7 +822,6 @@ struct block_max_wand_query {
 
 				ordered_enums[next_list]->docs_enum.next_geq(next);
 
-				// bubble down the advanced list
 				for (size_t i = next_list + 1; i < ordered_enums.size(); ++i) {
 					if (ordered_enums[i]->docs_enum.docid() <
 						ordered_enums[i - 1]->docs_enum.docid()) {
@@ -895,16 +834,11 @@ struct block_max_wand_query {
 			}
 		}
 
-
-		//m_topk.finalize();
-		//m_topk.test_write_topK("BMW");
 		return scoreQueue[threadid].m_q.size();
-		//return 0;
 	}
 
 private:
 	quasi_succinct::wand_data<scorer_type> const& m_wdata;
-	//topk_queue m_topk;
 };
 
 struct wand_query {
@@ -943,7 +877,6 @@ struct wand_query {
 		}
 
 		auto sort_enums = [&]() {
-			// sort enumerators by increasing docid
 			std::sort(ordered_enums.begin(), ordered_enums.end(),
 				[](scored_enum* lhs, scored_enum* rhs) {
 				return lhs->docs_enum.docid() < rhs->docs_enum.docid();
@@ -951,7 +884,6 @@ struct wand_query {
 		};
 		sort_enums();
 		while (true) {
-			// find pivot
 			float upper_bound = 0;
 			size_t pivot;
 			bool found_pivot = false;
@@ -965,12 +897,9 @@ struct wand_query {
 					break;
 				}
 			}
-			// no pivot found, we can stop the search
 			if (!found_pivot) {
 				break;
 			}
-
-			// check if pivot is a possible match
 			uint64_t pivot_id = ordered_enums[pivot]->docs_enum.docid();
 			if (pivot_id == ordered_enums[0]->docs_enum.docid()) {
 				float score = 0;
@@ -985,16 +914,13 @@ struct wand_query {
 				}
 
 				scoreQueue[threadid].insert(score);
-				// resort by docid
 				sort_enums();
 			}
 			else {
-				// no match, move farthest list up to the pivot
 				uint64_t next_list = pivot;
 				for (; ordered_enums[next_list]->docs_enum.docid() == pivot_id;
 					--next_list);
 					ordered_enums[next_list]->docs_enum.next_geq(pivot_id);
-				// bubble down the advanced list
 				for (size_t i = next_list + 1; i < ordered_enums.size(); ++i) {
 					if (ordered_enums[i]->docs_enum.docid() <
 						ordered_enums[i - 1]->docs_enum.docid()) {
@@ -1006,17 +932,13 @@ struct wand_query {
 				}
 			}
 		}
-		//m_topk.finalize();
-		//m_topk.test_write_topK("WAND");
 		return scoreQueue[threadid].m_q.size();
-		//return 0;
 	}
 
 
 
 private:
 	quasi_succinct::wand_data<scorer_type> const& m_wdata;
-	//topk_queue m_topk;
 };
 struct maxscore_query {
 
@@ -1053,7 +975,6 @@ struct maxscore_query {
 			ordered_enums.push_back(&en);
 		}
 
-		// sort enumerators by increasing maxscore
 		std::sort(ordered_enums.begin(), ordered_enums.end(),
 			[](scored_enum* lhs, scored_enum* rhs) {
 			return lhs->max_weight < rhs->max_weight;
@@ -1089,7 +1010,6 @@ struct maxscore_query {
 				}
 			}
 
-			// try to complete evaluation with non-essential lists
 			for (size_t i = non_essential_lists - 1; i + 1 > 0; --i) {
 				if (!scoreQueue[threadid].would_enter(score + upper_bounds[i])) {
 					break;
@@ -1102,7 +1022,6 @@ struct maxscore_query {
 			}
 
 			if (scoreQueue[threadid].insert(score)) {
-				// update non-essential lists
 				while (non_essential_lists < ordered_enums.size() &&
 					!scoreQueue[threadid].would_enter(upper_bounds[non_essential_lists])) {
 					non_essential_lists += 1;
@@ -1111,17 +1030,12 @@ struct maxscore_query {
 
 			cur_doc = next_doc;
 		}
-
-		//m_topk.finalize();
-		//m_topk.test_write_topK("MAXSCORE");
-		//return m_topk.topk().size();
 		return scoreQueue[threadid].m_q.size();
 	}
 
 
 private:
 	quasi_succinct::wand_data<scorer_type> const& m_wdata;
-	//topk_queue m_topk;
 };
 struct ranked_and_query {
 
@@ -1157,7 +1071,6 @@ struct ranked_and_query {
 			ordered_enums.push_back(&en);
 		}
 
-		// sort enumerators by increasing freq
 		std::sort(ordered_enums.begin(), ordered_enums.end(),
 			[](scored_enum* lhs, scored_enum* rhs) {
 			return lhs->docs_enum.size() < rhs->docs_enum.size();
@@ -1189,16 +1102,11 @@ struct ranked_and_query {
 				i = 1;
 			}
 		}
-
-		//m_topk.finalize();
-		//m_topk.test_write_topK("RANKAND");
-		//return m_topk.topk().size();
 		return scoreQueue[threadid].m_q.size();
 	}
 
 private:
 	quasi_succinct::wand_data<scorer_type> const& m_wdata;
-	//topk_queue m_topk;
 };
 
 void initial_data()
@@ -1210,9 +1118,7 @@ void initial_data()
 	read_List_Data(filename);
 	read_BlockWand_Data(filename);
 	read_SplitInfo(filename);
-	//read_query("/home/lxy/NVM_code/Data/AOL/AOL_query_test_rand100.txt");
-	//read_query("/home/lxy/NVM_code/Data/Reorder/ReorderTest/Gov2/Gov2Query.txt");
-	read_query("/home/lxy/NVM_code/RawData/ClueWeb/Query/ClueWebQueryT_Test.txt");
+	read_query("");
 	scoreQueue.resize(threadCount + 1);
 	queryLock.resize(queries.size());
 	globalScoreThresh.resize(queries.size());
@@ -1221,8 +1127,8 @@ void initial_data()
 	read_AssignedThreads();
 	read_ShardScore();
 
-	read_TermtopKThresh("/home/lxy/NVM_code/Data/Reorder/IntraQuery/topKScoreThresh/ClueWebtop10Score.txt");
-	read_TermTopkThreshShard("/home/lxy/NVM_code/Data/Reorder/IntraQuery/topKScoreThresh/ClueWeb/ClueWebtop10ScoreShard.txt");
+	read_TermtopKThresh("");
+	read_TermTopkThreshShard("");
 }
 void print_statistics(string querytype)
 {
@@ -1261,7 +1167,6 @@ inline void do_not_optimize_away(T&& datum) {
 unsigned jobCount=8;
 unsigned assignedThreadNum(unsigned qid)
 {
-	//return assignedThreads[qid];
 	return jobCount;
 }
 bool cmpScore(const pair<unsigned, float>&a, const pair<unsigned, float>&b)
@@ -1295,16 +1200,13 @@ void cal_FragScore(unsigned queryid)
 			avgminScore += minscore;
 			avgScore += (sumscore / blockcount);
 		}
-
-		//auto terms = query_freqs(queries[queryid]);
 		for (auto t : terms)
 		{
 			topKScore = max(topKScore, TermTopkThreshShard[t.first][f] * t.second);
 		}
 
 		ShardScore[queryid][f].first = f;
-		ShardScore[queryid][f].second = avgmaxScore;//累加段内每个块最大值的合，分数最高值
-		//ShardScore[queryid][f].second = topKScore;//累加每个词在该段内topK分数阈值，分数最低值
+		ShardScore[queryid][f].second = avgmaxScore;
 	}
 }
 void assignedQuery()
@@ -1320,14 +1222,9 @@ void assignedQuery()
 		cal_FragScore(i);
 		sort(ShardScore[i].begin(), ShardScore[i].end(), cmpScore);
 
-		/*shards[0].push_back(0); shards[0].push_back(4);
-		shards[1].push_back(1); shards[1].push_back(5);
-		shards[2].push_back(2); shards[2].push_back(6);
-		shards[3].push_back(3); shards[3].push_back(7);*/
 		for (unsigned t = 0; t < constShardcount; t++)
 		{
-			//shards[t%tasknum].push_back(ShardScore[i][t].first);//任务1：top1+top4  任务2：top2+top5
-			shards[t / tasksize].push_back(ShardScore[i][t].first);//任务1：最高分两个  任务2：次高分2两个
+			shards[t / tasksize].push_back(ShardScore[i][t].first);
 		}
 
 		Task task;
@@ -1346,12 +1243,12 @@ template <typename QueryOperator>
 void perform_query(QueryOperator&& query_op, Task task)
 {
 	auto tick = get_time_usecs();
-	unsigned result = 0;//result只对and有意义
+	unsigned result = 0;
 	unsigned threadid = omp_get_thread_num();
 	scoreQueue[threadid].clear(task.queryid);
 	for (unsigned t = 0; t < task.shardids.size(); t++)
 	{
-		result += query_op(task.shardids[t], task.queryid);//cout<<result<<endl;
+		result += query_op(task.shardids[t], task.queryid);
 	}
 #pragma omp critical(QueryInfo)
 	{
@@ -1361,7 +1258,6 @@ void perform_query(QueryOperator&& query_op, Task task)
 		if (queryInfo[task.queryid].time == 0 || queryInfo[task.queryid].time>tick)queryInfo[task.queryid].time = tick;
 		queryInfo[task.queryid].threadcount--;
 #pragma omp flush(queryInfo)
-		//最后执行结束
 		if (queryInfo[task.queryid].threadcount == 0){
 			sort(queryInfo[task.queryid].scoreHeap.rbegin(), queryInfo[task.queryid].scoreHeap.rend());
 			queryInfo[task.queryid].scoreHeap.resize(min(topK, (unsigned)queryInfo[task.queryid].scoreHeap.size()));
@@ -1372,7 +1268,6 @@ void perform_query(QueryOperator&& query_op, Task task)
 #pragma omp flush(curQID)
 		}
 	}
-	//cout<<"Perform over"<<endl;
 }
 
 template <typename QueryOperator>
@@ -1396,7 +1291,6 @@ void ProcessQuery(vector<QueryOperator>&queryop)
 		}
 #pragma omp flush(curQID)
 	}
-	//cout<<"Process over"<<endl;
 }
 
 
@@ -1444,7 +1338,6 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
-		//WAND查询逻辑
 		quasi_succinct::wand_data<> wdata;
 		boost::iostreams::mapped_file_source md(indexFileName + ".wand");
 		succinct::mapper::map(wdata, md, succinct::mapper::map_flags::warmup);
@@ -1465,7 +1358,6 @@ int main(int argc, char *argv[])
 			}
 			double elapsed = double(get_time_usecs() - tick);
 			cout << "Performed MAXSCORE query, sum time=" << elapsed << "throught put=" << queries.size() / elapsed * 1000000 << endl;
-			//writeResult("MAXSCORE");
 		}
 		else if (querytype == "WAND")
 		{
@@ -1484,7 +1376,6 @@ int main(int argc, char *argv[])
 			}
 			double elapsed = double(get_time_usecs() - tick);
 			cout << "Performed WAND query, sum time=" << elapsed << "throught put=" << queries.size() / elapsed * 1000000 << endl;
-			//writeResult("WAND");
 		}
 		else if (querytype == "RANKAND")
 		{
@@ -1503,7 +1394,6 @@ int main(int argc, char *argv[])
 			}
 			double elapsed = double(get_time_usecs() - tick);
 			cout << "Performed RANKAND query, sum time=" << elapsed << "throught put=" << queries.size() / elapsed * 1000000 << endl;
-			//writeResult("RANKAND");
 		}
 		else if (querytype == "BMW")
 		{
@@ -1522,7 +1412,6 @@ int main(int argc, char *argv[])
 			}
 			double elapsed = double(get_time_usecs() - tick);
 			cout << "Performed BMW query, sum time=" << elapsed << "throught put=" << queries.size() / elapsed * 1000000 << endl;
-			//writeResult("BMW");
 		}
 	}
 
