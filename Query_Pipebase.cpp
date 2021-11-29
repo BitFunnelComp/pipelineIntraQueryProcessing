@@ -1,4 +1,3 @@
-//DRAM_base 根据shardScore分数阈值决定先执行哪个任务(统计块内最大分数) 带有topK分数的
 #include<iostream>
 #include<vector>
 #include<stdint.h>
@@ -1231,7 +1230,6 @@ void assignedQuery()
 		vector<vector<unsigned>>shards(tasknum);
 		for (unsigned t = 0; t < constShardcount; t++)
 		{
-			//shards[t%tasknum].push_back(ShardScore[i][t].first);
 			shards[t / tasksize].push_back(ShardScore[i][t].first);
 		}
 
