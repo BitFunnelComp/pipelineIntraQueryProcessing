@@ -19,7 +19,7 @@ namespace quasi_succinct {
             index_types = 3
         };
 
-        static const uint64_t type_bits = 1; // all_ones is implicit
+        static const uint64_t type_bits = 1; 
 
         static QS_FLATTEN_FUNC uint64_t
         bitsize(global_parameters const& params, uint64_t universe, uint64_t n)
@@ -89,7 +89,7 @@ namespace quasi_succinct {
         class enumerator {
         public:
 
-            typedef std::pair<uint64_t, uint64_t> value_type; // (position, value)
+            typedef std::pair<uint64_t, uint64_t> value_type; 
 
             enumerator()
             {}
@@ -143,8 +143,6 @@ namespace quasi_succinct {
             }                                                       \
             /**/
 
-            // semicolons are redundant but they are needed to get emacs to
-            // align the lines properly
             ENUMERATOR_METHOD(value_type, move, (uint64_t position), (position));
             ENUMERATOR_METHOD(value_type, next_geq, (uint64_t lower_bound), (lower_bound));
             ENUMERATOR_METHOD(value_type, next, (), ());
