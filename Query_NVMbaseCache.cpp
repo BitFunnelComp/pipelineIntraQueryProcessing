@@ -1448,7 +1448,7 @@ struct ranked_and_query {
 #pragma omp atomic
 				node->aiodata.usedfreq++;
 				NodeforQuery[threadid].push_back(node);
-				if (flag == 0)//在LRU中miss了
+				if (flag == 0)
 					Nodeforthread[threadid].push_back(node);
 			}
 		}
