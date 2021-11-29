@@ -38,7 +38,7 @@ namespace quasi_succinct {
         class enumerator {
         public:
 
-            typedef std::pair<uint64_t, uint64_t> value_type; // (position, value)
+            typedef std::pair<uint64_t, uint64_t> value_type; 
 
             enumerator()
             {}
