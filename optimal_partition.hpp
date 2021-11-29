@@ -13,21 +13,19 @@ namespace quasi_succinct {
     struct optimal_partition {
 
         std::vector<posting_t> partition;
-        cost_t cost_opt = 0; // the costs are in bits!
+        cost_t cost_opt = 0; 
 
         template <typename ForwardIterator>
         struct cost_window {
-            // a window reppresent the cost of the interval [start, end)
 
             ForwardIterator start_it;
             ForwardIterator end_it;
-            // starting and ending position of the window
             posting_t start = 0;
-            posting_t end = 0; // end-th position is not in the current window
-            posting_t min_p = 0; // element that preceed the first element of the window
+            posting_t end = 0; 
+            posting_t min_p = 0; 
             posting_t max_p = 0;
 
-            cost_t cost_upper_bound; // The maximum cost for this window
+            cost_t cost_upper_bound; 
 
             cost_window(ForwardIterator begin, cost_t cost_upper_bound)
                 : start_it(begin)
@@ -73,10 +71,9 @@ namespace quasi_succinct {
             cost_t single_block_cost = cost_fun(universe, size);
             std::vector<cost_t> min_cost(size+1, single_block_cost);
             min_cost[0] = 0;
-
-            // create the required window: one for each power of approx_factor
+            
             std::vector<cost_window<ForwardIterator>> windows;
-            cost_t cost_lb = cost_fun(1, 1); // minimum cost
+            cost_t cost_lb = cost_fun(1, 1); 
             cost_t cost_bound = cost_lb;
             while (eps1 == 0 || cost_bound < cost_lb / eps1) {
                 windows.emplace_back(begin, cost_bound);
