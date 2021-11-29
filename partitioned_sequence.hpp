@@ -259,7 +259,7 @@ namespace quasi_succinct {
                     m_partition_enum.move(m_partition_enum.size());
                     return value_type(m_position, m_universe);
                 }
-                auto size_it = m_sizes.next_geq(m_position + 1); // need endpoint strictly > m_position
+                auto size_it = m_sizes.next_geq(m_position + 1); 
                 switch_partition(size_it.first);
                 uint64_t val = m_cur_base + m_partition_enum.move(m_position - m_cur_begin).second;
                 return value_type(m_position, val);
