@@ -1,4 +1,3 @@
-//libaio的异步IO 全局动态cache query粒度锁，无预取
 #include<iostream>
 #include<vector>
 #include<stdint.h>
