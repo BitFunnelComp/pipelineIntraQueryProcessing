@@ -309,7 +309,7 @@ void readIOWork()
 	}
 	cout << "Out Pref" << endl;
 }
-bool cmpFreq(const pair<unsigned, unsigned>&a, const pair<unsigned, unsigned>&b)//根据查询频率降序
+bool cmpFreq(const pair<unsigned, unsigned>&a, const pair<unsigned, unsigned>&b)
 {
 	return a.second > b.second;
 }
@@ -464,7 +464,7 @@ struct block_posting_list {
 			}
 			tmpendpoint -= base_endpoint;
 #pragma omp flush(NodeforQuery)
-			while (NodeforQuery[m_threadid][m_lid]->aiodata.curReadpos < tmpendpoint)//轮询当前数据是否读到需要部分
+			while (NodeforQuery[m_threadid][m_lid]->aiodata.curReadpos < tmpendpoint)
 			{
 #pragma omp flush(NodeforQuery)
 				aioReadBlock();
@@ -473,7 +473,7 @@ struct block_posting_list {
 			uint32_t endpoint = block
 				? ((uint32_t const*)m_block_endpoints)[block - 1]
 				: 0;
-			uint8_t const* block_data = m_blocks_data + endpoint - base_endpoint;//
+			uint8_t const* block_data = m_blocks_data + endpoint - base_endpoint;
 
 			m_cur_block_size =
 				((block + 1) * block_size <= size())
@@ -810,7 +810,7 @@ void aioReadFirstBlock()
 	int threadid = omp_get_thread_num();
 	curReadID[threadid] = 0;
 	unsigned cur = 0, i = 0;
-	for (i = 0, cur = 0; i < Nodeforthread[threadid].size(); i++)//|Q|
+	for (i = 0, cur = 0; i < Nodeforthread[threadid].size(); i++)
 	{
 		unsigned lid = i;
 		io_prep_pread(&readrequest[threadid][cur], IndexFile, Nodeforthread[threadid][lid]->aiodata.list_data + Nodeforthread[threadid][lid]->aiodata.memoffset, Nodeforthread[threadid][lid]->aiodata.readblocksize, Nodeforthread[threadid][lid]->aiodata.readoffset);
