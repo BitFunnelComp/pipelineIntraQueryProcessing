@@ -1,11 +1,11 @@
 # pipelineQueryProcessing
 The code is rewritten from https://github.com/ot/partitioned_elias_fano
 
-\textbf{Collection input format}
+#Collection input format
 
 A binary sequence is a sequence of integers prefixed by its length, where both the sequence integers and the length are written as 32-bit little-endian unsigned integers.
 
-A collection consists of 3 files, <basename>.docs, <basename>.freqs, <basename>.sizes.
+A collection consists of 3 files, basename.docs, basename.freqs, basename.sizes.
 
 basename.docs starts with a singleton binary sequence where its only integer is the number of documents in the collection. It is then followed by one binary sequence for each posting list, in order of term-ids. Each posting list contains the sequence of document-ids containing the term.
 
