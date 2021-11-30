@@ -1,7 +1,7 @@
 # pipelineQueryProcessing
 The code is rewritten from https://github.com/ot/partitioned_elias_fano
 
-Collection input format
+Collection input format is same as partitioned_elias_fano
 
 A binary sequence is a sequence of integers prefixed by its length, where both the sequence integers and the length are written as 32-bit little-endian unsigned integers.
 
