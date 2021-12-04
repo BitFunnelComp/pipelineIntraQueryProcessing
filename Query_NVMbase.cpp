@@ -158,8 +158,7 @@ vector<vector<pair<unsigned, float>>>ShardScore;
 vector<vector<float>>TermTopkThreshShard;
 vector<unsigned>assignedThreads;
 
-vector<string>queryFileName={"","","","",""};
-vector<string>pallFileName={"","","","",""};
+string queryFileName="";
 int queryFileNo=0;
 void initThreadStruct()
 {
@@ -749,7 +748,7 @@ void read_AssignedThreads()
 {
 	assignedThreads.resize(queries.size());
 	vector<int>transform = { 1, 2, 4, 8 };
-	string filename = ""+pallFileName[queryFileNo];
+	string filename = queryFileName + ".pall";
 	ifstream fin(filename);
 	int threadsnum;
 	for (unsigned i = 0; i < queries.size(); i++)
@@ -759,9 +758,6 @@ void read_AssignedThreads()
 	}
 	fin.close();
 
-	for (int i = 0; i<10; i++)
-		cout << assignedThreads[i] << " ";
-	cout << endl;
 }
 void read_ShardScore()
 {
@@ -1524,7 +1520,7 @@ void initial_data()
 	read_BlockWand_Data(filename);
 	read_SplitInfo(filename);
 	read_Endpoint(filename);
-	read_query(""+queryFileName[queryFileNo]);
+	read_query(queryFileName);
 	scoreQueue.resize(threadCount + 1);
 	queryLock.resize(queries.size());
 	globalScoreThresh.resize(queries.size());
@@ -1535,8 +1531,8 @@ void initial_data()
 	read_AssignedThreads();
 	read_ShardScore();
 
-	read_TermtopKThresh("");
-	read_TermTopkThreshShard("");
+	read_TermtopKThresh(filename+".topkthresh");
+	read_TermTopkThreshShard(filename+".topkthreshshard");
 }
 void print_statistics(string querytype)
 {
@@ -1831,7 +1827,7 @@ int main(int argc, char *argv[])
 	string querytype = argv[2];
 	threadCount = atoi(argv[3]);
 	CACHE_SIZE *= atoi(argv[4]);
-  queryFileNo=atoi(argv[5]);
+        queryFileName=argv[5];
 	threadCount += 3;
 	IndexFile = open((indexFileName + ".list").c_str(), O_RDONLY | O_DIRECT);
 	initial_data();
