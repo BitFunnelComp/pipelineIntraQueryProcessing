@@ -75,6 +75,15 @@ add_library(block_codecs
 #  )
 ]
 
+add_executable(Query_Intra Query_Intra.cpp)
+target_link_libraries(Query_Intra
+  ${Boost_LIBRARIES}
+  FastPFor_lib
+  block_codecs
+  streamvbyte_static 
+  streamvbyte
+  )
+  
 add_executable(Cal_Feature Cal_Feature.cpp)
 target_link_libraries(Cal_Feature
   ${Boost_LIBRARIES}
