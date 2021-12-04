@@ -490,10 +490,7 @@ struct block_posting_list {
 			m_cur_docid = m_docs_buf[0] >= SharddocIDThresh[m_shardid + 1] ? m_universe : m_docs_buf[0];
 			m_freqs_decoded = false;
 		}
-		void pprint(uint8_t const* in)
-		{
-			cout << "print" << (int)*in << " " << (int)*(in + 1) << " " << (int)*(in + 2) << " " << (int)*(in + 3) << endl;
-		}
+		
 		void QS_NOINLINE decode_freqs_block()
 		{
 			m_codec.decode(m_freqs_block_data, m_freqs_buf.data(),
