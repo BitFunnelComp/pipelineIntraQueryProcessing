@@ -33,6 +33,7 @@ LRUCache global_LRUCache;
 
 unsigned QSIZE = 100000;
 unsigned batchSize = 10000;
+string FILE_NAME = ""
 
 void read_query(string filename, unsigned turn)
 {
@@ -190,7 +191,7 @@ void batchProcess()
 	for (unsigned i = 0; i < turn; i++)
 	{
 		cout << "***********************turn=" << i << "*****************************" << endl;
-		read_query("", i);
+		read_query(FILE_NAME, i);
 		queryinfo.clear(); queryOrder.clear();
 		queryinfo.resize(queries.size());
 		for (unsigned i = 0; i < queryinfo.size(); i++)
@@ -204,8 +205,9 @@ void batchProcess()
 }
 int main(int argc, char *argv[])
 {
-	CACHE_SIZE *= atoi(argv[1]);
-	batchSize = atoi(argv[2]);
+	FILE_NAME = argv[1];
+	CACHE_SIZE *= atoi(argv[2]);
+	batchSize = atoi(argv[3]);
 	cout << "Cache size=" << CACHE_SIZE << endl;
 	initData();
 	cout << "Initdata over" << endl;
